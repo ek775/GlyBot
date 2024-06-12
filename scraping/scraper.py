@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
 
 ### Scrapers and Parsers ###
 class Scraper:
@@ -19,7 +20,7 @@ class Text_extractor:
     def extract_text(self):
         text = ''
         for paragraph in self.soup.find_all('p'):
-            text += paragraph.get_text()
+            text += (' ' + paragraph.get_text())
         return text
     
 class Book:
@@ -28,10 +29,11 @@ class Book:
         self.title = title
     def add_chapter(self, chapter):
         self.chapters.append(chapter)
-    def to_file(self, filename):
-        with open(filename, 'w') as filename:
-            for chapter in self.chapters:
-                filename.write(chapter + '\n')
+    def to_file(self, filename, urls):
+        df = pd.DataFrame(self.chapters, columns=['Chapter'])
+        labels = pd.DataFrame(urls, columns=['URL'])
+        df = pd.concat([df, labels], axis=1)
+        df.to_csv(filename, index=False, sep='\t')
 
 ### Main ###
 
@@ -43,7 +45,7 @@ with open(file='scrape_list_for_essentials_of_glycobiology', mode='r') as file:
     
 print('Scraping...')
 book = Book('Essentials of Glycobiology')
-for url in urls:
+for i, url in enumerate(urls):
     scraper = Scraper(url)
     soup = scraper.scrape()
     if soup == 'missing_chapter':
@@ -52,7 +54,8 @@ for url in urls:
     text_extractor = Text_extractor(soup)
     text = text_extractor.extract_text()
     book.add_chapter(text)
+    print(f'Chapter {i+1} done')
 
 print('Writing to file...')
-book.to_file(filename=book.title + '.txt')
+book.to_file(filename=book.title, urls=urls)
 print('done')
