@@ -3,10 +3,9 @@
 # import libraries & helper scripts
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index import SimpleDirectoryReader, VectorStoreIndex
-from llama_index.core import Settings
+from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, Settings
 
-from evaluation.CRUD import CRUD_metrics
+#from evaluation.CRUD import CRUD_metrics
 
 import os
 import pandas as pd
