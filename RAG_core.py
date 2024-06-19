@@ -10,7 +10,6 @@ from pipelines.vector_store import initialize_vector_db
 #from evaluation.CRUD import CRUD_metrics
 
 import os
-import pandas as pd
 
 # load sensitive stuffs
 key = None
