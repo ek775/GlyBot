@@ -5,7 +5,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.extractors import TitleExtractor
-from llama_index.core.ingestion import IngestionPipeline, IngestionCache
+from llama_index.core.ingestion import IngestionPipeline
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 import qdrant_client
@@ -34,8 +34,13 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/'):
         vector_store=vector_store
     )
 
-    # load the vector db
-    pipeline.run(documents=documents)
+    # check for cached vector store
+    try:
+        pipeline.load('./vector_store_cache')
+    except FileNotFoundError:
+        # load the vector db
+        pipeline.run(documents=documents)
+        pipeline.persist('./vector_store_cache')
     # create index
     print("Creating index...")
     index = VectorStoreIndex.from_vector_store(vector_store)
