@@ -3,7 +3,9 @@
 # import libraries & helper scripts
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.core import Settings
+from llama_index.core import Settings, get_response_synthesizer
+from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.query_engine import RetrieverQueryEngine
 
 from pipelines.vector_store import initialize_vector_db
 
@@ -25,5 +27,19 @@ Settings.embed_model = OpenAIEmbedding(
 
 # initialize db, query engine, chat engine
 client, vector_store, index = initialize_vector_db(data_dir='./textbook_text_data/')
+
+# configure retriever and query engine
+retriever = VectorIndexRetriever(
+    index=index,
+    similarity_top_k=5
+    )
+response_synthesizer = get_response_synthesizer(response_mode="tree_summarize")
+query_engine = RetrieverQueryEngine(
+    retriever=retriever, 
+    response_synthesizer=response_synthesizer
+    )
+
+# configure chat engine
+"""finish me later once ready for interaction with the user"""
 
 # **Main Loop** 
