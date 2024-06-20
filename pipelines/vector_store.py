@@ -46,4 +46,4 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/'):
     index = VectorStoreIndex.from_vector_store(vector_store)
     print("Done!")
 
-    return client, vector_store, index
+    return client, vector_store, index, documents

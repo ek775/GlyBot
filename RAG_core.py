@@ -26,7 +26,8 @@ Settings.embed_model = OpenAIEmbedding(
 )
 
 # initialize db, query engine, chat engine
-client, vector_store, index = initialize_vector_db(data_dir='./textbook_text_data/')
+client, vector_store, index, documents = initialize_vector_db(
+    data_dir='./textbook_text_data/')
 
 # configure retriever and query engine
 retriever = VectorIndexRetriever(
