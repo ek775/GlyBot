@@ -1,17 +1,17 @@
 ### Main Application Script for Text Generation Backend ###
 
-# import libraries & helper scripts
+# import libraries
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core import Settings, get_response_synthesizer
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
-
+# helper scripts
 from pipelines.vector_store import initialize_vector_db
-
-#from evaluation.CRUD import CRUD_metrics
-
+from evaluation.response import GlyBot_Evaluator
+# other utilities
 import os
+import sys
 
 # load sensitive stuffs
 key = None
@@ -40,7 +40,22 @@ query_engine = RetrieverQueryEngine(
     response_synthesizer=response_synthesizer
     )
 
+
+# Evaluation mode
+if sys.argv[1] == 'eval':
+    evaluator = GlyBot_Evaluator(
+        curated_q_path='./curated_q.csv',
+        documents=documents,
+        query_engine=query_engine
+    )
+    evaluator.transform()
+    evaluator.evaluate()
+    sys.exit(0)
+
 # configure chat engine
 """finish me later once ready for interaction with the user"""
 
 # **Main Loop** 
+"""run the chatbot once we get there"""
+
+# Evaluation

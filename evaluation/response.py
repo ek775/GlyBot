@@ -21,7 +21,7 @@ from ragas.metrics import (
 from ragas.metrics.critique import harmfulness
 from ragas.integrations.llama_index import evaluate
 
-class glybot_response_metrics(BaseEvaluator):
+class GlyBot_Evaluator(BaseEvaluator):
     """
     Class for running response evaluation in the main experimentation pipeline.
     """
@@ -66,7 +66,7 @@ class glybot_response_metrics(BaseEvaluator):
         # load curated test set
         curated_test_set = pd.read_csv(self.curated_q_path)
         curated_dict = {"question":curated_test_set['Query'],
-                        "ground_truth":curated_test_set['Correct Answer']}
+                        "ground_truth":curated_test_set['Expected']}
 
         self.curated_dict = curated_dict # new attribute
 
