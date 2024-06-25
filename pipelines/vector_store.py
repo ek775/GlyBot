@@ -10,7 +10,8 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 import qdrant_client
 
-def initialize_vector_db(data_dir: str = './textbook_text_data/'):
+def initialize_vector_db(data_dir: str = './textbook_text_data/',
+                         cache_name: str = 'llama-3-cache'):
     """
     Helper function for initializing the Vector Store
     """
@@ -36,11 +37,11 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/'):
 
     # check for cached vector store
     try:
-        pipeline.load('./vector_store_cache')
+        pipeline.load('./' + cache_name)
     except FileNotFoundError:
         # load the vector db
         pipeline.run(documents=documents)
-        pipeline.persist('./vector_store_cache')
+        pipeline.persist('./' + cache_name, cache_name=cache_name)
     # create index
     print("Creating index...")
     index = VectorStoreIndex.from_vector_store(vector_store)
