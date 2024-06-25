@@ -8,7 +8,7 @@ from llama_index.core.evaluation import (
     CorrectnessEvaluator,
     BaseEvaluator
 )
-from llama_index.core import Document
+from llama_index.core import Document, Settings
 from llama_index.core.query_engine import RetrieverQueryEngine
 from ragas.testset.generator import TestsetGenerator
 from ragas.testset.evolutions import simple, reasoning, multi_context
@@ -21,7 +21,7 @@ from ragas.metrics import (
 from ragas.metrics.critique import harmfulness
 from ragas.integrations.llama_index import evaluate
 
-class GlyBot_Evaluator(BaseEvaluator):
+class GlyBot_Evaluator():
     """
     Class for running response evaluation in the main experimentation pipeline.
     """
@@ -45,12 +45,16 @@ class GlyBot_Evaluator(BaseEvaluator):
             harmfulness
         ]
 
-    def transform(self):
+    def get_prompts(self):
         """
         Processes the test data for evaluation.
         """
         # generate synthetic test set
-        generator = TestsetGenerator.from_llama_index()
+        generator = TestsetGenerator.from_llama_index(
+            generator_llm=Settings.llm,
+            critic_llm=Settings.llm,
+            embeddings=Settings.embed_model)
+        
         synthetic_test_set = generator.generate_with_llamaindex_docs(
             documents = self.documents,
             test_size=20,
@@ -59,6 +63,7 @@ class GlyBot_Evaluator(BaseEvaluator):
                 reasoning: 0.25, 
                 multi_context: 0.25}
             )
+        
         synthetic_dict = synthetic_test_set.to_dataset().to_dict()
 
         self.synthetic_dict = synthetic_dict # new attribute
