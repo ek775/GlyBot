@@ -21,6 +21,7 @@ with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
     key = f.read().strip()
 
 # choose model at exe, apply settings
+cache = None
 if sys.argv[1] == 'openai':
     # load sensitive stuffs
     key = None
@@ -33,6 +34,7 @@ if sys.argv[1] == 'openai':
         model="text-embedding-3-small", 
         embed_batch_size=100
         )
+    cache = 'vector_store_cache'
 else:
     os.system("ollama run llama3") # start local ollama server
     local_url = "http://localhost:11434" # defaults to this location
@@ -45,10 +47,12 @@ else:
         base_url=local_url,
         ollama_additional_kwargs={"mirostat": 0},
         )
+    cache = 'llama-3-cache'
 
 # initialize db
 client, vector_store, index, documents = initialize_vector_db(
-    data_dir='./textbook_text_data/')
+    data_dir='./textbook_text_data/',
+    cache_name=cache)
 
 # configure retriever and query engine
 retriever = VectorIndexRetriever(
