@@ -1,7 +1,7 @@
 """Helper Script for initializing the Vector Store"""
 
 # imports
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.extractors import TitleExtractor
@@ -30,7 +30,7 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/',
         transformations=[
             SentenceSplitter(),
             TitleExtractor(),
-            OpenAIEmbedding()
+            Settings.embed_model
         ],
         vector_store=vector_store
     )

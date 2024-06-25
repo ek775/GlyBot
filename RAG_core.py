@@ -15,14 +15,15 @@ from evaluation.response import GlyBot_Evaluator
 import os
 import sys
 
-# load sensitive stuffs
-key = None
-with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
-    key = f.read().strip()
+# CLI args
+assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
+assert sys.argv[2] in ['eval', 'chat'], "Please specify the mode of operation: 'eval' or 'chat'"
+llm = sys.argv[1]
+mode = sys.argv[2]
 
 # choose model at exe, apply settings
 cache = None
-if sys.argv[1] == 'openai':
+if llm == 'openai':
     # load sensitive stuffs
     key = None
     with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
@@ -35,15 +36,18 @@ if sys.argv[1] == 'openai':
         embed_batch_size=100
         )
     cache = 'vector_store_cache'
-else:
-    os.system("ollama run llama3") # start local ollama server
+
+elif llm == 'ollama':
+    # NOTE: This option requires running the LLM server locally
+    # Install from https://github.com/ollama/ollama.git
+    #os.system('ollama serve llama3')
     local_url = "http://localhost:11434" # defaults to this location
     # 8B model, 4.7GB base, docs suggest ~8GB RAM, GPU ideally
     Settings.llm = Ollama(model="llama3",
                           base_url=local_url
                           )
     Settings.embed_model = OllamaEmbedding(
-        model="llama3",
+        model_name="llama3",
         base_url=local_url,
         ollama_additional_kwargs={"mirostat": 0},
         )
@@ -68,7 +72,7 @@ query_engine = RetrieverQueryEngine(
     )
 
 # Evaluation mode
-if sys.argv[2] == 'eval' or sys.argv[2] == 'eval':
+if mode == 'eval':
     evaluator = GlyBot_Evaluator(
         curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
         documents=documents,
