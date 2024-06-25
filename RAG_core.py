@@ -25,7 +25,7 @@ Settings.embed_model = OpenAIEmbedding(
     model="text-embedding-3-small", embed_batch_size=100
 )
 
-# initialize db, query engine, chat engine
+# initialize db
 client, vector_store, index, documents = initialize_vector_db(
     data_dir='./textbook_text_data/')
 
@@ -34,21 +34,22 @@ retriever = VectorIndexRetriever(
     index=index,
     similarity_top_k=5
     )
+
 response_synthesizer = get_response_synthesizer(response_mode="tree_summarize")
+
 query_engine = RetrieverQueryEngine(
     retriever=retriever, 
     response_synthesizer=response_synthesizer
     )
 
-
 # Evaluation mode
 if sys.argv[1] == 'eval':
     evaluator = GlyBot_Evaluator(
-        curated_q_path='./curated_q.csv',
+        curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
         documents=documents,
         query_engine=query_engine
     )
-    evaluator.transform()
+    evaluator.get_prompts()
     evaluator.evaluate()
     sys.exit(0)
 
