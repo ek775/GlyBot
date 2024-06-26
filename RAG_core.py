@@ -14,6 +14,8 @@ from evaluation.response import GlyBot_Evaluator
 # other utilities
 import os
 import sys
+import nest_asyncio
+nest_asyncio.apply()
 
 # CLI args
 assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
@@ -36,6 +38,7 @@ if llm == 'openai':
         embed_batch_size=100
         )
     cache = 'vector_store_cache'
+    name = 'llama_cache'
 
 elif llm == 'ollama':
     # NOTE: This option requires running the LLM server locally
@@ -44,7 +47,8 @@ elif llm == 'ollama':
     local_url = "http://localhost:11434" # defaults to this location
     # 8B model, 4.7GB base, docs suggest ~8GB RAM, GPU ideally
     Settings.llm = Ollama(model="llama3",
-                          base_url=local_url
+                          base_url=local_url,
+                          request_timeout=180
                           )
     Settings.embed_model = OllamaEmbedding(
         model_name="llama3",
@@ -52,13 +56,16 @@ elif llm == 'ollama':
         ollama_additional_kwargs={"mirostat": 0},
         )
     cache = 'llama-3-cache'
+    name = 'llama-3-cache'
 
 # initialize db
 client, vector_store, index, documents = initialize_vector_db(
     data_dir='./textbook_text_data/',
-    cache_name=cache)
+    cache=cache,
+    name=name)
 
 # configure retriever and query engine
+print("Configuring Query Engine...")
 retriever = VectorIndexRetriever(
     index=index,
     similarity_top_k=5
@@ -73,13 +80,14 @@ query_engine = RetrieverQueryEngine(
 
 # Evaluation mode
 if mode == 'eval':
+    print("Running Evaluation...")
     evaluator = GlyBot_Evaluator(
         curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
         documents=documents,
         query_engine=query_engine
     )
     evaluator.get_prompts()
-    evaluator.evaluate()
+    evaluator.response_evaluation()
     sys.exit(0)
 
 # configure chat engine

@@ -2,6 +2,7 @@
 
 # imports
 import pandas as pd
+import os
 from llama_index.core.evaluation import (
     FaithfulnessEvaluator,
     RelevancyEvaluator,
@@ -70,8 +71,9 @@ class GlyBot_Evaluator():
 
         # load curated test set
         curated_test_set = pd.read_csv(self.curated_q_path)
-        curated_dict = {"question":curated_test_set['Query'],
-                        "ground_truth":curated_test_set['Expected']}
+        columns = curated_test_set.columns
+        curated_dict = {"question":curated_test_set[columns[1]],
+                        "ground_truth":curated_test_set[columns[2]]}
 
         self.curated_dict = curated_dict # new attribute
 
@@ -103,6 +105,22 @@ class GlyBot_Evaluator():
                    ("llm_synth",llm_synth), 
                    ("ragas_curated",ragas_curated), 
                    ("llm_curated",llm_curated)]
+        
+        def set_result_path():
+            """
+            recursively tries to set a new result path for each evaluation run
+            so results are not saved over each other.
+            """
+            result_path = "./response_evaluation"
+            loc = 0
+            while os.path.exists(result_path):
+                loc+=1
+                result_path = f"./response_evaluation_{loc}"
+
+            return result_path
+
+        path = set_result_path()  
+          
         for data in results:
             df = data[1].to_pandas()
-            df.to_csv(f"./response_evaluation/{data[0]}.csv")
+            df.to_csv(f"{path}/{data[0]}.csv")
