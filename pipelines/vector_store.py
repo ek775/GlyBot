@@ -20,13 +20,13 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/', cache: str = '
 
     # initialize client and vector store
     print("Initializing Vector DB...")
-    #client = qdrant_client.QdrantClient(location=":memory:")
-    async_client = qdrant_client.AsyncQdrantClient(location=":memory:")
+    client = qdrant_client.QdrantClient(location=":memory:")
+    #async_client = qdrant_client.AsyncQdrantClient(location=":memory:")
     vector_store = QdrantVectorStore(
         collection_name="glyco_store",
-        #client=client,
-        aclient=async_client,
-        prefer_grpc=True
+        client=client,
+        #aclient=async_client,
+        #prefer_grpc=True
         )
     
     # pipeline
@@ -50,7 +50,7 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/', cache: str = '
 
     # create index
     print("Creating index...")
-    index = VectorStoreIndex.from_vector_store(vector_store=vector_store, use_async=True)
+    index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
     print("Done!")
 
-    return index, documents, async_client
+    return index, documents, client
