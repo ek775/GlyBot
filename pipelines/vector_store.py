@@ -43,10 +43,10 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/', cache: str = '
     # check for cached vector store
     try:
         pipeline.load(f"./{cache}", cache_name=name)
-        pipeline.run(documents=documents, num_workers=mp.cpu_count())
+        pipeline.run(documents=documents, num_workers=mp.cpu_count()//2)
     except FileNotFoundError:
         # load the vector db
-        pipeline.run(documents=documents, num_workers=mp.cpu_count())
+        pipeline.run(documents=documents, num_workers=mp.cpu_count()//2)
         pipeline.persist(f"./{cache}", cache_name=name)
 
     # create index
