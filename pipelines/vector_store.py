@@ -6,7 +6,6 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.extractors import TitleExtractor
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.vector_stores.qdrant import QdrantVectorStore
-import multiprocessing as mp
 
 import qdrant_client
 
@@ -43,10 +42,10 @@ def initialize_vector_db(data_dir: str = './textbook_text_data/', cache: str = '
     # check for cached vector store
     try:
         pipeline.load(f"./{cache}", cache_name=name)
-        pipeline.run(documents=documents, num_workers=mp.cpu_count()//2)
+        pipeline.run(documents=documents)
     except FileNotFoundError:
         # load the vector db
-        pipeline.run(documents=documents, num_workers=mp.cpu_count()//2)
+        pipeline.run(documents=documents)
         pipeline.persist(f"./{cache}", cache_name=name)
 
     # create index
