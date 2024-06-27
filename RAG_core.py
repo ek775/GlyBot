@@ -59,7 +59,7 @@ elif llm == 'ollama':
     name = 'llama-3-cache'
 
 # initialize db
-client, vector_store, index, documents = initialize_vector_db(
+index, documents, async_client = initialize_vector_db(
     data_dir='./textbook_text_data/',
     cache=cache,
     name=name)
