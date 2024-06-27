@@ -59,7 +59,7 @@ elif llm == 'ollama':
     name = 'llama-3-cache'
 
 # initialize db
-client, vector_store, index, documents = initialize_vector_db(
+index, documents, client = initialize_vector_db(
     data_dir='./textbook_text_data/',
     cache=cache,
     name=name)
@@ -86,7 +86,9 @@ if mode == 'eval':
         documents=documents,
         query_engine=query_engine
     )
+    print("Generating Prompts...")
     evaluator.get_prompts()
+    print("Evaluating Responses...")
     evaluator.response_evaluation()
     sys.exit(0)
 
