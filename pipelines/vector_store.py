@@ -29,14 +29,17 @@ class QdrantSetup:
         self.use_async = use_async
         self.client = self._set_client(use_async)
         self.vector_store = self._build_vector_store(client=self.client)
+        self.documents = self.read_data(loc=self.data_dir)
+        self.index = None
         if not os.path.exists(f"./{cache}/qdrant.db"):
-            self.documents = self._initialize_vector_db(
-                data_dir=self.data_dir, 
+            self._initialize_vector_db(
+                documents=self.documents, 
                 cache=self.cache, 
                 name=self.name
                 )
+            self.index = self._load_index(vector_store=self.vector_store)
         else:
-            self.index = _load_index(vector_store=self.vector_store)
+            self.index = self._load_index(vector_store=self.vector_store)
 
     def _set_client(self, use_async):
         """
@@ -76,7 +79,15 @@ class QdrantSetup:
                 prefer_grpc=True
                 )
             return vector_store
-            
+    
+    def read_data(self, loc: str):
+        """
+        Read data from location
+        """
+        reader = SimpleDirectoryReader(input_dir=loc)
+        documents = reader.load_data()
+        return documents
+        
     def _load_index(self, vector_store):
         """
         Load index from Vector Store
@@ -87,7 +98,7 @@ class QdrantSetup:
         print("Done!")
         return index
     
-    def _initialize_vector_db(self, data_dir: str, cache: str, name: str):
+    def _initialize_vector_db(self, documents, cache: str, name: str):
         """
         Initializing the Vector Store
         """
@@ -108,17 +119,12 @@ class QdrantSetup:
                     cache=IngestionCache(collection=f"./{cache}/{name}")
                 )
                 return pipeline
-        # read data
-        print("Reading data...")
-        reader = SimpleDirectoryReader(input_dir=data_dir)
-        documents = reader.load_data()
 
         # initialize client and vector store
         print("Initializing Vector DB...")
         if self.client.__class__.__name__ == 'QdrantClient':
             pipeline = build_pipeline(vector_store=self.vector_store)
             pipeline.run(documents=documents)
-            return documents
         
         elif self.client.__class__.__name__ == 'AsyncQdrantClient':
             async def run_pipeline(pipeline: IngestionPipeline, documents):
@@ -127,4 +133,3 @@ class QdrantSetup:
                 run_pipeline(
                     pipeline=build_pipeline(vector_store=self.vector_store), documents=documents)
                     )   
-            return documents
