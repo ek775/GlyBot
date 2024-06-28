@@ -9,7 +9,7 @@ from llama_index.core import Settings, get_response_synthesizer
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 # helper scripts
-from pipelines.vector_store import initialize_vector_db
+from pipelines.vector_store import QdrantSetup
 from evaluation.response import GlyBot_Evaluator
 # other utilities
 import os
@@ -59,10 +59,10 @@ elif llm == 'ollama':
     name = 'llama-3-cache'
 
 # initialize db
-index, documents, client = initialize_vector_db(
-    data_dir='./textbook_text_data/',
-    cache=cache,
-    name=name)
+db = QdrantSetup(data_dir='./textbook_text_data/', cache=cache, name=name, use_async=True)
+index = db.index
+documents = db.documents
+client = db.client
 
 # configure retriever and query engine
 print("Configuring Query Engine...")
