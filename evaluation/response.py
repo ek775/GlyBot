@@ -131,7 +131,8 @@ class GlyBot_Evaluator():
 
             return result_path
 
-        path = set_result_path()  
+        path = set_result_path() 
+        os.system(f"mkdir {path}") 
           
         for data in results:
             df = data[1].to_pandas()
