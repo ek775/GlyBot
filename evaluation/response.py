@@ -81,30 +81,42 @@ class GlyBot_Evaluator():
         """
         Runs the evaluation pipeline.
         """
+        llm = Settings.llm
+        embed_model = Settings.embed_model
+
         ragas_synth = evaluate(
             query_engine = self.query_engine,
             metrics = self.ragas_metrics,
-            dataset = self.synthetic_dict
+            dataset = self.synthetic_dict,
+            llm=llm,
+            embeddings=embed_model
         )
-        llm_synth = evaluate(
+        """llm_synth = evaluate(
             query_engine = self.query_engine,
             metrics = self.llm_metrics,
-            dataset = self.synthetic_dict
-        )
+            dataset = self.synthetic_dict,
+            llm=llm,
+            embeddings=embed_model
+        )"""
         ragas_curated = evaluate(
             query_engine = self.query_engine,
             metrics = self.ragas_metrics,
-            dataset = self.curated_dict
+            dataset = self.curated_dict,
+            llm=llm,
+            embeddings=embed_model
         )
-        llm_curated = evaluate(
+        """llm_curated = evaluate(
             query_engine = self.query_engine,
             metrics = self.llm_metrics,
-            dataset = self.curated_dict
-        )
+            dataset = self.curated_dict,
+            llm=llm,
+            embeddings=embed_model
+        )"""
         results = [("ragas_synth",ragas_synth), 
-                   ("llm_synth",llm_synth), 
+                   #("llm_synth",llm_synth), 
                    ("ragas_curated",ragas_curated), 
-                   ("llm_curated",llm_curated)]
+                   #("llm_curated",llm_curated)
+                   ]
         
         def set_result_path():
             """
