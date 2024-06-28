@@ -11,7 +11,7 @@ q_e_dict = {
 with open('./ground_truth_eval_queries/passage_start', 'r') as f:
     lines = f.readlines()
     for query in lines:
-        prompt = "Complete the following passage: " + query.strip()
+        prompt = "Complete the following paragraph: " + query.strip()
         q_e_dict['question'].append(prompt)
 
 with open('./ground_truth_eval_queries/passage_continuation', 'r') as f:
