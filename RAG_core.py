@@ -36,7 +36,7 @@ if llm == 'openai':
     Settings.llm = OpenAI(model="gpt-4")
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small", 
-        embed_batch_size=100
+        embed_batch_size=5
         )
     cache = 'vector_store_cache'
     name = 'llama_cache'
