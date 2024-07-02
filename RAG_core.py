@@ -23,6 +23,7 @@ assert sys.argv[2] in ['eval', 'chat'], "Please specify the mode of operation: '
 llm = sys.argv[1]
 mode = sys.argv[2]
 
+#######################################################################################
 # choose model at exe, apply settings
 cache = None
 if llm == 'openai':
@@ -78,20 +79,44 @@ query_engine = RetrieverQueryEngine(
     response_synthesizer=response_synthesizer
     )
 
+#################################################################################
 # Evaluation mode
 if mode == 'eval':
     print("Running Evaluation...")
+
+# make dummy index for base model
+    dummy_db = QdrantSetup(
+        data_dir='./dummy_data_directory/',
+        cache='dummy_db',
+        name='dummy_db',
+        use_async=True
+        )
+    dummy_index = dummy_db.index
+    dummy_documents = dummy_db.documents
+    dummy_client = dummy_db.client
+    dummy_engine = dummy_index.as_query_engine(
+        llm=Settings.llm,
+        response_mode="tree_summarize"
+        )
+    
+    # experimental RAG augmentation eval
     evaluator = GlyBot_Evaluator(
         curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
         documents=documents,
         query_engine=query_engine
-    )
+        )
     print("Generating Prompts...")
     evaluator.get_prompts()
     print("Evaluating Responses...")
     evaluator.response_evaluation()
+    # dummy eval
+    print("Evaluating Dummy Responses...")
+    evaluator.set_query_engine(dummy_engine)
+    evaluator.response_evaluation()
+    print("***COMPLETE***")
     sys.exit(0)
 
+#################################################################################
 # configure chat engine
 """finish me later once ready for interaction with the user"""
 

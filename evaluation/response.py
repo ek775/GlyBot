@@ -3,23 +3,25 @@
 # imports
 import pandas as pd
 import os
-from llama_index.core.evaluation import (
-    FaithfulnessEvaluator,
-    RelevancyEvaluator,
-    CorrectnessEvaluator,
-    BaseEvaluator
-)
+
 from llama_index.core import Document, Settings
 from llama_index.core.query_engine import RetrieverQueryEngine
 from ragas.testset.generator import TestsetGenerator
 from ragas.testset.evolutions import simple, reasoning, multi_context
 from ragas.metrics import (
+    # response metrics
     faithfulness,
     answer_relevancy,
+    answer_correctness, #gt
+    answer_similarity, #gt
+    # retrieval metrics
+    context_relevancy,
     context_precision,
-    context_recall,
+    context_recall, #gt
+    context_entity_recall,
+    context_utilization
 )
-from ragas.metrics.critique import harmfulness
+from ragas.metrics.critique import harmfulness, correctness, coherence
 from ragas.integrations.llama_index import evaluate
 
 class GlyBot_Evaluator():
@@ -33,18 +35,31 @@ class GlyBot_Evaluator():
         self.documents = documents
         self.curated_q_path = curated_q_path
         self.query_engine = query_engine
-        self.llm_metrics = [
-            FaithfulnessEvaluator(),
-            RelevancyEvaluator(),
-            CorrectnessEvaluator()
-        ]
         self.ragas_metrics = [
+            # response metrics
             faithfulness,
             answer_relevancy,
+            answer_correctness,
+            answer_similarity,
+            # retrieval metrics
+            context_relevancy,
             context_precision,
             context_recall,
-            harmfulness
+            context_entity_recall,
+            context_utilization,
+            # voting critic llm metrics
+            harmfulness,
+            correctness,
+            coherence
         ]
+        self.curated_dict = None
+        self.synthetic_dict = None
+
+    def set_query_engine(self, query_engine):
+        """
+        Set the query engine for the evaluator.
+        """
+        self.query_engine = query_engine
 
     def get_prompts(self):
         """
@@ -58,7 +73,7 @@ class GlyBot_Evaluator():
         
         synthetic_test_set = generator.generate_with_llamaindex_docs(
             documents = self.documents,
-            test_size=20,
+            test_size=40,
             distributions={
                 simple: 0.5, 
                 reasoning: 0.25, 
@@ -91,13 +106,6 @@ class GlyBot_Evaluator():
             llm=llm,
             embeddings=embed_model
         )
-        """llm_synth = evaluate(
-            query_engine = self.query_engine,
-            metrics = self.llm_metrics,
-            dataset = self.synthetic_dict,
-            llm=llm,
-            embeddings=embed_model
-        )"""
         ragas_curated = evaluate(
             query_engine = self.query_engine,
             metrics = self.ragas_metrics,
@@ -105,17 +113,8 @@ class GlyBot_Evaluator():
             llm=llm,
             embeddings=embed_model
         )
-        """llm_curated = evaluate(
-            query_engine = self.query_engine,
-            metrics = self.llm_metrics,
-            dataset = self.curated_dict,
-            llm=llm,
-            embeddings=embed_model
-        )"""
         results = [("ragas_synth",ragas_synth), 
-                   #("llm_synth",llm_synth), 
-                   ("ragas_curated",ragas_curated), 
-                   #("llm_curated",llm_curated)
+                   ("ragas_curated",ragas_curated)
                    ]
         
         def set_result_path():
