@@ -128,7 +128,7 @@ class QdrantSetup:
         
         elif self.client.__class__.__name__ == 'AsyncQdrantClient':
             async def run_pipeline(pipeline: IngestionPipeline, documents):
-                await pipeline.arun(documents=documents)
+                await pipeline.arun(documents=documents, num_workers=4)
             asyncio.run(
                 run_pipeline(
                     pipeline=build_pipeline(vector_store=self.vector_store), documents=documents)
