@@ -6,10 +6,10 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.extractors import TitleExtractor
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.ingestion.cache import IngestionCache
+from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 import qdrant_client
-import asyncio
 import os
 
 class QdrantSetup:
@@ -18,73 +18,67 @@ class QdrantSetup:
     """
     def __init__(self, data_dir: str = './textbook_text_data/', 
                  cache: str = 'llama-3-cache', 
-                 name: str = 'llama-3-cache',
-                 use_async: bool = True):
+                 name: str = 'llama-3-cache'):
         """
         Setting Params
         """
         self.data_dir = data_dir
         self.cache = cache
         self.name = name
-        self.use_async = use_async
-        self.client = self._set_client(use_async)
-        self.vector_store = self._build_vector_store(client=self.client)
-        self.documents = self.read_data(loc=self.data_dir)
+        self.sync_client = None
+        self.async_client = None
+        self.vector_store = None
+        self.documents = None
         self.index = None
-        if not os.path.exists(f"./{cache}/qdrant.db"):
+        if os.path.exists(f"./{cache}/qdrant.db"):
+            print("Connecting to Existing Vector DB...")
+            self._set_client()
+            self.vector_store = self._build_vector_store()
+            self.documents = self.read_data(loc=self.data_dir)
+            self.index = self._load_index(vector_store=self.vector_store)
+        else:
+            self._set_client()
+            self.vector_store = self._build_vector_store()
+            self.documents = self.read_data(loc=self.data_dir)
             self._initialize_vector_db(
                 documents=self.documents, 
                 cache=self.cache, 
                 name=self.name
                 )
             self.index = self._load_index(vector_store=self.vector_store)
-        else:
-            self.index = self._load_index(vector_store=self.vector_store)
 
-    def _set_client(self, use_async):
+    def _set_client(self):
         """
-        Use sync or async client
+        Use sync client to load data, async for db search
         """
-        if use_async==False:
-            client = qdrant_client.QdrantClient(
-                path=f"./{self.cache}/qdrant.db",  
-                port=6333, 
-                grpc_port=6334, 
-                prefer_grpc=True)
-            return client
-        else:
-            client = qdrant_client.AsyncQdrantClient(
-                path=f"./{self.cache}/qdrant.db", 
-                port=6333, 
-                grpc_port=6334, 
-                prefer_grpc=True)
-            return client
+        self.sync_client = qdrant_client.QdrantClient(
+            path=f"./{self.cache}/qdrant.db",  
+            port=6333, 
+            grpc_port=6334, 
+            prefer_grpc=True)
+        self.async_client = qdrant_client.AsyncQdrantClient(
+            path=f"./{self.cache}/qdrant.db", 
+            port=6333, 
+            grpc_port=6334, 
+            prefer_grpc=True)
         
-    def _build_vector_store(self, client):
+    def _build_vector_store(self):
         """
-        build vector store from client
+        build vector store with synchronous and asynchronous clients
         """
-        if client.__class__.__name__ == 'QdrantClient':
-            vector_store = QdrantVectorStore(
-                collection_name="glyco_store",
-                client=client,
-                prefer_grpc=True
-                )
-            return vector_store
-        
-        elif client.__class__.__name__ == 'AsyncQdrantClient':
-            vector_store = QdrantVectorStore(
-                collection_name="glyco_store",
-                aclient=client,
-                prefer_grpc=True
-                )
-            return vector_store
+        vector_store = QdrantVectorStore(
+            collection_name="glyco_store",
+            client=self.sync_client,
+            aclient=self.async_client,
+            prefer_grpc=True
+        )
+        return vector_store
     
     def read_data(self, loc: str):
         """
         Read data from location
         """
-        reader = SimpleDirectoryReader(input_dir=loc)
+        reader = SimpleDirectoryReader(input_dir=loc, filename_as_id=True)
         documents = reader.load_data()
         return documents
         
@@ -105,31 +99,20 @@ class QdrantSetup:
         # pipeline
         def build_pipeline(vector_store: QdrantVectorStore):
             """builds pipeline, checks for cached data"""
-            try:
-                pipeline = IngestionPipeline.load(f"./{cache}", cache_name=name)
-                return pipeline
-            except FileNotFoundError:
-                pipeline = IngestionPipeline(
+            pipeline = IngestionPipeline(
+                    name=name,
                     transformations=[
                         SentenceSplitter(),
                         TitleExtractor(),
                         Settings.embed_model
                     ],
+                    docstore=SimpleDocumentStore(),
                     vector_store=vector_store,
                     cache=IngestionCache(collection=f"./{cache}/{name}")
                 )
-                return pipeline
+            return pipeline
 
         # initialize client and vector store
         print("Initializing Vector DB...")
-        if self.client.__class__.__name__ == 'QdrantClient':
-            pipeline = build_pipeline(vector_store=self.vector_store)
-            pipeline.run(documents=documents)
-        
-        elif self.client.__class__.__name__ == 'AsyncQdrantClient':
-            async def run_pipeline(pipeline: IngestionPipeline, documents):
-                await pipeline.arun(documents=documents, num_workers=4)
-            asyncio.run(
-                run_pipeline(
-                    pipeline=build_pipeline(vector_store=self.vector_store), documents=documents)
-                    )   
+        pipeline = build_pipeline(vector_store=self.vector_store)
+        pipeline.run(documents=documents) 
