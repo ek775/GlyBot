@@ -33,13 +33,13 @@ if llm == 'openai':
         key = f.read().strip()
     # connect to OpenAI
     os.environ['OPENAI_API_KEY'] = key
-    Settings.llm = OpenAI(model="gpt-4")
+    Settings.llm = OpenAI(model="gpt-3.5-turbo")
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small", 
-        embed_batch_size=5
+        embed_batch_size=100
         )
-    cache = 'vector_store_cache'
-    name = 'llama_cache'
+    cache = 'openai_vector_data'
+    name = 'openai_pipeline_cache'
 
 elif llm == 'ollama':
     # NOTE: This option requires running the LLM server locally
@@ -56,14 +56,13 @@ elif llm == 'ollama':
         base_url=local_url,
         ollama_additional_kwargs={"mirostat": 0},
         )
-    cache = 'llama-3-cache'
-    name = 'llama-3-cache'
+    cache = 'llama-3_vector_data'
+    name = 'llama-3_pipeline_cache'
 
-# initialize db
-db = QdrantSetup(data_dir='./textbook_text_data/', cache=cache, name=name, use_async=True)
+# initialize vector database, load documents if necessary, create index
+db = QdrantSetup(data_dir='./textbook_text_data/', cache=cache, name=name)
 index = db.index
 documents = db.documents
-client = db.client
 
 # configure retriever and query engine
 print("Configuring Query Engine...")
@@ -84,16 +83,14 @@ query_engine = RetrieverQueryEngine(
 if mode == 'eval':
     print("Running Evaluation...")
 
-# make dummy index for base model
+    # make dummy index for non-RAG comparison
     dummy_db = QdrantSetup(
         data_dir='./dummy_data_directory/',
         cache='dummy_db',
-        name='dummy_db',
-        use_async=True
+        name='dummy_db'
         )
     dummy_index = dummy_db.index
     dummy_documents = dummy_db.documents
-    dummy_client = dummy_db.client
     dummy_engine = dummy_index.as_query_engine(
         llm=Settings.llm,
         response_mode="tree_summarize"
