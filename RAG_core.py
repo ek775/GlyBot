@@ -59,7 +59,7 @@ elif llm == 'ollama':
     cache = 'llama-3_vector_data'
     name = 'llama-3_pipeline_cache'
 
-# initialize vector database, load documents if necessary, create index
+# initialize/connect to vector database, load documents, create index
 db = QdrantSetup(data_dir='./textbook_text_data/', cache=cache, name=name)
 index = db.index
 documents = db.documents
