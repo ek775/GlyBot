@@ -31,20 +31,23 @@ class QdrantSetup:
         self.documents = None
         self.index = None
         if os.path.exists(f"./{cache}/qdrant.db"):
-            print("Connecting to Existing Vector DB...")
+            print("Connecting to existing vector DB...")
             self._set_client()
-            self.vector_store = self._build_vector_store()
+            self.vector_store = self._build_vector_store(use_async=True)
             self.documents = self.read_data(loc=self.data_dir)
             self.index = self._load_index(vector_store=self.vector_store)
         else:
+            print("Setting up new vector DB...")
             self._set_client()
-            self.vector_store = self._build_vector_store()
+            self.vector_store = self._build_vector_store(use_async=False)
             self.documents = self.read_data(loc=self.data_dir)
             self._initialize_vector_db(
                 documents=self.documents, 
                 cache=self.cache, 
                 name=self.name
                 )
+            print("Connecting async client to DB...")
+            self.vector_store = self._build_vector_store(use_async=True)
             self.index = self._load_index(vector_store=self.vector_store)
 
     def _set_client(self):
@@ -62,16 +65,22 @@ class QdrantSetup:
             grpc_port=6334, 
             prefer_grpc=True)
         
-    def _build_vector_store(self):
+    def _build_vector_store(self, use_async: bool):
         """
         build vector store with synchronous and asynchronous clients
         """
-        vector_store = QdrantVectorStore(
-            collection_name="glyco_store",
-            client=self.sync_client,
-            aclient=self.async_client,
-            prefer_grpc=True
-        )
+        if use_async==False:
+            vector_store = QdrantVectorStore(
+                collection_name="glyco_store",
+                client=self.sync_client,
+                prefer_grpc=True
+            )
+        else:
+            vector_store = QdrantVectorStore(
+                collection_name="glyco_store",
+                aclient=self.async_client,
+                prefer_grpc=True
+            )
         return vector_store
     
     def read_data(self, loc: str):
@@ -113,6 +122,5 @@ class QdrantSetup:
             return pipeline
 
         # initialize client and vector store
-        print("Initializing Vector DB...")
         pipeline = build_pipeline(vector_store=self.vector_store)
         pipeline.run(documents=documents) 
