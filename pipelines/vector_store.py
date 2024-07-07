@@ -25,21 +25,20 @@ class QdrantSetup:
         self.data_dir = data_dir
         self.cache = cache
         self.name = name
-        self.sync_client = None
-        self.async_client = None
+        self.client = None
         self.vector_store = None
         self.documents = None
         self.index = None
         if os.path.exists(f"./{cache}/qdrant.db"):
             print("Connecting to existing vector DB...")
-            self._set_client()
-            self.vector_store = self._build_vector_store(use_async=True)
+            self._set_client(use_async=True)
+            self._connect_to_vector_store()
             self.documents = self.read_data(loc=self.data_dir)
             self.index = self._load_index(vector_store=self.vector_store)
         else:
             print("Setting up new vector DB...")
-            self._set_client()
-            self.vector_store = self._build_vector_store(use_async=False)
+            self._set_client(use_async=False)
+            self._connect_to_vector_store()
             self.documents = self.read_data(loc=self.data_dir)
             self._initialize_vector_db(
                 documents=self.documents, 
@@ -47,41 +46,43 @@ class QdrantSetup:
                 name=self.name
                 )
             print("Connecting async client to DB...")
-            self.vector_store = self._build_vector_store(use_async=True)
+            self._set_client(use_async=True)
+            self._connect_to_vector_store()
             self.index = self._load_index(vector_store=self.vector_store)
 
-    def _set_client(self):
+    def _set_client(self, use_async: bool):
         """
         Use sync client to load data, async for db search
         """
-        self.sync_client = qdrant_client.QdrantClient(
-            path=f"./{self.cache}/qdrant.db",  
-            port=6333, 
-            grpc_port=6334, 
-            prefer_grpc=True)
-        self.async_client = qdrant_client.AsyncQdrantClient(
-            path=f"./{self.cache}/qdrant.db", 
-            port=6333, 
-            grpc_port=6334, 
-            prefer_grpc=True)
+        if use_async==False:
+            self.client = qdrant_client.QdrantClient(
+                path=f"./{self.cache}/qdrant.db",  
+                port=6333, 
+                grpc_port=6334, 
+                prefer_grpc=True)
+        else:
+            self.client = qdrant_client.AsyncQdrantClient(
+                path=f"./{self.cache}/qdrant.db", 
+                port=6333, 
+                grpc_port=6334, 
+                prefer_grpc=True)
         
-    def _build_vector_store(self, use_async: bool):
+    def _connect_to_vector_store(self):
         """
         build vector store with synchronous and asynchronous clients
         """
-        if use_async==False:
-            vector_store = QdrantVectorStore(
+        if isinstance(self.client, qdrant_client.QdrantClient):
+            self.vector_store = QdrantVectorStore(
                 collection_name="glyco_store",
-                client=self.sync_client,
+                client=self.client,
                 prefer_grpc=True
             )
-        else:
-            vector_store = QdrantVectorStore(
+        elif isinstance(self.client, qdrant_client.AsyncQdrantClient):
+            self.vector_store = QdrantVectorStore(
                 collection_name="glyco_store",
-                aclient=self.async_client,
+                aclient=self.client,
                 prefer_grpc=True
             )
-        return vector_store
     
     def read_data(self, loc: str):
         """
