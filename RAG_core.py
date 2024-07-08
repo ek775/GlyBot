@@ -49,7 +49,7 @@ elif llm == 'ollama':
     # 8B model, 4.7GB base, docs suggest ~8GB RAM, GPU ideally
     Settings.llm = Ollama(model="llama3",
                           base_url=local_url,
-                          request_timeout=180
+                          request_timeout=720
                           )
     Settings.embed_model = OllamaEmbedding(
         model_name="llama3",
