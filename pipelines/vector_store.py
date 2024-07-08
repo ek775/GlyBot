@@ -57,8 +57,8 @@ class QdrantSetup:
         if use_async==False:
             self.client = qdrant_client.QdrantClient(
                 path=f"./{self.cache}/qdrant.db",  
-                port=6333, 
-                grpc_port=6334, 
+                port=6433, 
+                grpc_port=6434, 
                 prefer_grpc=True)
         else:
             self.client = qdrant_client.AsyncQdrantClient(
