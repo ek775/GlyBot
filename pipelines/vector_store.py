@@ -11,6 +11,8 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 import qdrant_client
 import os
+from asyncio import Semaphore
+import asyncio
 
 class QdrantSetup:
     """
@@ -37,7 +39,7 @@ class QdrantSetup:
             self.index = self._load_index(vector_store=self.vector_store)
         else:
             print("Setting up new vector DB...")
-            self._set_client(use_async=False)
+            self._set_client(use_async=True)
             self._connect_to_vector_store()
             self.documents = self.read_data(loc=self.data_dir)
             self._initialize_vector_db(
@@ -45,9 +47,9 @@ class QdrantSetup:
                 cache=self.cache, 
                 name=self.name
                 )
-            print("Connecting async client to DB...")
-            self._set_client(use_async=True)
-            self._connect_to_vector_store()
+            #print("Connecting async client to DB...")
+            #self._set_client(use_async=True)
+            #self._connect_to_vector_store()
             self.index = self._load_index(vector_store=self.vector_store)
 
     def _set_client(self, use_async: bool):
@@ -57,8 +59,8 @@ class QdrantSetup:
         if use_async==False:
             self.client = qdrant_client.QdrantClient(
                 path=f"./{self.cache}/qdrant.db",  
-                port=6433, 
-                grpc_port=6434, 
+                port=6333, 
+                grpc_port=6334, 
                 prefer_grpc=True)
         else:
             self.client = qdrant_client.AsyncQdrantClient(
@@ -122,6 +124,14 @@ class QdrantSetup:
                 )
             return pipeline
 
-        # initialize client and vector store
+        # async loading data
+        async def async_load(pipeline, docs, semaphore):
+            async with semaphore:
+                await pipeline.arun(documents=docs, num_workers=1)
+        
+        # build pipeline and load data
         pipeline = build_pipeline(vector_store=self.vector_store)
-        pipeline.run(documents=documents) 
+        semaphore = Semaphore(value = 1)
+
+        asyncio.run(async_load(pipeline=pipeline, docs=documents, semaphore=semaphore))
+        
