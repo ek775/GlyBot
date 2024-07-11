@@ -47,6 +47,8 @@ dependencies:
       - charset-normalizer==3.3.2
       - click==8.1.7
       - comm==0.2.2
+      - contourpy==1.2.1
+      - cycler==0.12.1
       - dataclasses-json==0.6.6
       - datasets==2.20.0
       - debugpy==1.8.1
@@ -59,6 +61,7 @@ dependencies:
       - executing==2.0.1
       - fastjsonschema==2.19.1
       - filelock==3.15.1
+      - fonttools==4.53.1
       - fqdn==1.5.1
       - frozenlist==1.4.1
       - fsspec==2024.5.0
@@ -99,6 +102,7 @@ dependencies:
       - jupyterlab-pygments==0.3.0
       - jupyterlab-server==2.27.2
       - jupyterlab-widgets==3.0.11
+      - kiwisolver==1.4.5
       - langchain==0.2.5
       - langchain-community==0.2.5
       - langchain-core==0.2.9
@@ -127,6 +131,7 @@ dependencies:
       - markdown-it-py==3.0.0
       - markupsafe==2.1.5
       - marshmallow==3.21.3
+      - matplotlib==3.9.1
       - matplotlib-inline==0.1.7
       - mdurl==0.1.2
       - mistune==3.0.2
@@ -168,6 +173,7 @@ dependencies:
       - pydantic-core==2.18.4
       - pydeck==0.9.1
       - pygments==2.18.0
+      - pyparsing==3.1.2
       - pypdf==4.2.0
       - pysbd==0.3.4
       - python-dateutil==2.9.0.post0
@@ -186,6 +192,7 @@ dependencies:
       - rfc3986-validator==0.1.1
       - rich==13.7.1
       - rpds-py==0.18.1
+      - seaborn==0.13.2
       - send2trash==1.8.3
       - six==1.16.0
       - smmap==5.0.1
