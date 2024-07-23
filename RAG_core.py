@@ -27,12 +27,11 @@ mode = sys.argv[2]
 # choose model at exe, apply settings
 instructions = "You are a glycobiology assistant for GlyGen that helps scientists navigate and utilize a bioinformatics knowledgebase."
 prompt_template = (
-    "{instructions}"
-    "Context information from multiple sources is below.\n"
+    "Context information from selected sources is below.\n"
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n"
-    "Given the information from multiple sources and not prior knowledge, "
+    "Given the information from the selected sources and not prior knowledge, "
     "answer the query.\n"
     "Query: {query_str}\n"
     "Answer: "
@@ -48,7 +47,7 @@ if llm == 'openai':
         key = f.read().strip()
     # connect to OpenAI
     os.environ['OPENAI_API_KEY'] = key
-    Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=live_prompt_template)
+    Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=instructions)
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small", 
         embed_batch_size=100
@@ -65,7 +64,7 @@ elif llm == 'ollama':
     Settings.llm = Ollama(model="llama3",
                           base_url=local_url,
                           request_timeout=180,
-                          system_prompt=live_prompt_template
+                          system_prompt=instructions
                           )
     Settings.embed_model = OllamaEmbedding(
         model_name="llama3",
@@ -87,7 +86,7 @@ retriever = VectorIndexRetriever(
     similarity_top_k=5
     )
 
-response_synthesizer = get_response_synthesizer(response_mode="tree_summarize") # remind me to mess with multiple prompt types
+response_synthesizer = get_response_synthesizer(response_mode="tree_summarize", text_qa_template=live_prompt_template) # remind me to mess with multiple prompt types
 
 query_engine = RetrieverQueryEngine(
     retriever=retriever, 
@@ -99,7 +98,7 @@ query_engine = RetrieverQueryEngine(
 if mode == 'eval':
     print("Running Evaluation...")
 
-    # make dummy index for non-RAG comparison
+    # make dummy index for baseline comparison
     print("Setting up Dummy Index...")
     dummy_db = QdrantSetup(
         data_dir='./dummy_data_directory/',
