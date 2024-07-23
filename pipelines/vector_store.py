@@ -114,8 +114,14 @@ class QdrantSetup:
             pipeline = IngestionPipeline(
                     name=name,
                     transformations=[
-                        SentenceSplitter(),
-                        TitleExtractor(),
+                        SentenceSplitter(
+                            chunk_size=120,
+                            chunk_overlap=20
+                        ),
+                        TitleExtractor(
+                            llm=Settings.llm,
+                            nodes=1
+                        ),
                         Settings.embed_model
                     ],
                     docstore=SimpleDocumentStore(),
