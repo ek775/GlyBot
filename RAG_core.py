@@ -8,6 +8,8 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, get_response_synthesizer
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.prompts.base import PromptTemplate
+from llama_index.core.prompts.prompt_type import PromptType
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 from evaluation.response import GlyBot_Evaluator
@@ -23,7 +25,22 @@ mode = sys.argv[2]
 
 #######################################################################################
 # choose model at exe, apply settings
-cache = None
+instructions = "You are a glycobiology assistant for GlyGen that helps scientists navigate and utilize a bioinformatics knowledgebase."
+prompt_template = (
+    "{instructions}"
+    "Context information from multiple sources is below.\n"
+    "---------------------\n"
+    "{context_str}\n"
+    "---------------------\n"
+    "Given the information from multiple sources and not prior knowledge, "
+    "answer the query.\n"
+    "Query: {query_str}\n"
+    "Answer: "
+)
+live_prompt_template = PromptTemplate(
+    prompt_template, prompt_type=PromptType.CUSTOM
+)
+
 if llm == 'openai':
     # load sensitive stuffs
     key = None
@@ -31,7 +48,7 @@ if llm == 'openai':
         key = f.read().strip()
     # connect to OpenAI
     os.environ['OPENAI_API_KEY'] = key
-    Settings.llm = OpenAI(model="gpt-3.5-turbo")
+    Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=live_prompt_template)
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small", 
         embed_batch_size=100
@@ -47,7 +64,8 @@ elif llm == 'ollama':
     # 8B model, 4.7GB base, docs suggest ~8GB RAM, GPU ideally
     Settings.llm = Ollama(model="llama3",
                           base_url=local_url,
-                          request_timeout=180
+                          request_timeout=180,
+                          system_prompt=live_prompt_template
                           )
     Settings.embed_model = OllamaEmbedding(
         model_name="llama3",
@@ -69,7 +87,7 @@ retriever = VectorIndexRetriever(
     similarity_top_k=5
     )
 
-response_synthesizer = get_response_synthesizer(response_mode="tree_summarize")
+response_synthesizer = get_response_synthesizer(response_mode="tree_summarize") # remind me to mess with multiple prompt types
 
 query_engine = RetrieverQueryEngine(
     retriever=retriever, 
