@@ -5,7 +5,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.embeddings.ollama import OllamaEmbedding
-from llama_index.core import Settings, get_response_synthesizer
+from llama_index.core import Settings, get_response_synthesizer, VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.prompts.base import PromptTemplate
@@ -16,6 +16,10 @@ from evaluation.response import GlyBot_Evaluator
 # other utilities
 import os
 import sys
+import logging
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 # CLI args
 assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
@@ -27,11 +31,11 @@ mode = sys.argv[2]
 # choose model at exe, apply settings
 instructions = "You are a glycobiology assistant for GlyGen that helps scientists navigate and utilize a bioinformatics knowledgebase."
 prompt_template = (
-    "Context information from selected sources is below.\n"
+    "Context information from 'Essentials of Glycobiology' (4th edition) is below.\n"
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n"
-    "Given the information from the selected sources and not prior knowledge, "
+    "Given the information from the selected text and not prior knowledge, "
     "answer the query.\n"
     "Query: {query_str}\n"
     "Answer: "
@@ -86,7 +90,7 @@ retriever = VectorIndexRetriever(
     similarity_top_k=5
     )
 
-response_synthesizer = get_response_synthesizer(response_mode="tree_summarize", text_qa_template=live_prompt_template) # remind me to mess with multiple prompt types
+response_synthesizer = get_response_synthesizer(response_mode="tree_summarize", text_qa_template=live_prompt_template)
 
 query_engine = RetrieverQueryEngine(
     retriever=retriever, 
@@ -96,7 +100,7 @@ query_engine = RetrieverQueryEngine(
 #################################################################################
 # Evaluation mode
 if mode == 'eval':
-    print("Running Evaluation...")
+    print("Running RAGAS Evaluation...")
 
     # make dummy index for baseline comparison
     print("Setting up Dummy Index...")
@@ -130,10 +134,71 @@ if mode == 'eval':
     sys.exit(0)
 
 #################################################################################
-# configure chat engine
-"""finish me later once ready for interaction with the user"""
+# configure agent
+from llama_index.tools.openapi import OpenAPIToolSpec # glygen api: https://api.glygen.org/swagger.json
+from llama_index.tools.google import GoogleSearchToolSpec
+from llama_index.readers.papers import PubmedReader
+from llama_index.core.tools import FunctionTool, QueryEngineTool
+from pydantic import BaseModel, Field
+from llama_index.agent.openai import OpenAIAgent
+import requests
+#import yaml
 
+# tools
+tool_list = []
+
+# glygen api tool
+#f = requests.get('https://api.glygen.org/swagger.json').text
+#api_spec = yaml.safe_load(f)
+GlyGenAPITool = OpenAPIToolSpec(url='https://api.glygen.org/swagger.json')
+tool_list.append(GlyGenAPITool)
+
+# google search tool
+# GoogleSearchTool = GoogleSearchToolSpec("""NEED WRAPPER, API KEY???""")
+
+# pubmed reader tool
+class PubMedQuery(BaseModel):
+    """pydantic object describing how to search pubmed to the llm"""
+    query: str = Field(..., description="Natural Language Query to search for on Pubmed.")
+
+def pubmed_search(query: str):
+    """Retrieves abstracts of relevant papers from PubMed"""
+    reader = PubmedReader()
+    papers = reader.load_data(search_query=query, max_results=20)
+    index = VectorStoreIndex.from_documents(papers)
+    retriever = index.as_retriever()
+    results = retriever.retrieve(query)
+    return [r.get_content() for r in results]
+
+PubmedSearchTool = FunctionTool.from_defaults(
+    fn= pubmed_search,
+    name="PubmedSearchTool",
+    description="Use this tool to search for recent studies on PubMed that are related to the user's query.",
+    fn_schema=PubMedQuery
+    )
+tool_list.append(PubmedSearchTool)
+
+# query engine tool for "Essentials of Glycobiology" textbook
+TextbookQueryEngineTool = QueryEngineTool(query_engine=query_engine)
+tool_list.append(TextbookQueryEngineTool)
+
+# agent
+agent = OpenAIAgent(
+    llm=Settings.llm,
+    tools=tool_list,
+    verbose=True
+    )
+
+#################################################################################
 # **Main Loop** 
-"""run the chatbot once we get there"""
+if mode == "chat":
+    print("Hello, I am GlyBot, your glycobiology assistant. How can I help you today?")
+    while True:
+        user_input = input("User: ")
+        if user_input == "exit":
+            print("Goodbye!")
+            break
+        print("GlyBot: " + str(agent.chat(user_input)))
+        
 
 # Evaluation
