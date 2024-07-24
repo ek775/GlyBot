@@ -163,3 +163,5 @@ cython_debug/
 
 # sensitive stuff goes in the SENSITIVE folder (like api keys, passwords, etc.)
 SENSITIVE/
+# files getting too big for github
+logging
