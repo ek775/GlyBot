@@ -19,19 +19,26 @@ import os
 import sys
 import logging
 
-#logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-#logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stderr))
-
 # CLI args
-if sys.argv[1] != None:
+# model: openai or ollama
+try:
     assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
     llm = sys.argv[1]
-elif sys.argv[1]==None:
+
+except IndexError:
     llm = 'openai'
-if sys.argv[2] != None:
+
+# mode: eval or chat
+try:
     assert sys.argv[2] in ['eval', 'chat'], "Please specify the mode of operation: 'eval' or 'chat'"
     mode = sys.argv[2]
-elif sys.argv[2]==None:
+    # log if eval mode
+    if mode == 'eval':
+        print("logging debug output")
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+        logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+
+except IndexError:
     mode = 'chat'
 
 #######################################################################################
