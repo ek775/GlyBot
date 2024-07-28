@@ -85,24 +85,7 @@ elif llm == 'ollama':
     cache = 'llama-3_vector_data'
     name = 'llama-3_pipeline_cache'
 
-# initialize/connect to vector database, load documents, create index
-#db = QdrantSetup(use_async=True, data_dir='./textbook_text_data/', cache=cache, name=name)
-#index = db.index
-#documents = db.documents
-
-# configure retriever and query engine
-#print("Configuring Query Engine...")
-#retriever = VectorIndexRetriever(
-#    index=index,
-#    similarity_top_k=5
-#    )
-
-#response_synthesizer = get_response_synthesizer(response_mode="tree_summarize", text_qa_template=live_prompt_template)
-
-#query_engine = RetrieverQueryEngine(
-#    retriever=retriever, 
-#    response_synthesizer=response_synthesizer
-#    )
+# config tools
 
 class Parameters:
     """Base class for setting parameters"""
@@ -110,15 +93,17 @@ class Parameters:
         """Set parameters from a dictionary"""
         for i in param_dict:
             setattr(self, i, param_dict[i])
-
-    def __iter__(self):
-        for attr, value in self.__dict__.iteritems():
+    @property
+    def params(self):
+        for attr in self.__dict__:
+            value = getattr(self, attr)
             yield attr, value
-
 
 class QueryEngineConfig:
     """
-    Configures the Query Engine
+    Configures the Query Engine.
+
+    Full implementation will include multi-parameter testing using a grid-search approach.
     """
     def index(self) -> QdrantSetup:
         use_async = self.index_params.use_async
@@ -159,37 +144,74 @@ class QueryEngineConfig:
 if mode == 'eval':
     print("Running RAGAS Evaluation...")
 
-    # make dummy index for baseline comparison
-    print("Setting up Dummy Index...")
-    dummy_db = QdrantSetup(
-        data_dir='./dummy_data_directory/',
-        cache='dummy_db',
-        name='dummy_db'
-        )
-    dummy_index = dummy_db.index
-    dummy_documents = dummy_db.documents
-    dummy_engine = dummy_index.as_query_engine(
-        llm=Settings.llm,
-        response_mode="tree_summarize"
-        )
+    # setting parameters
+    
+    full_index_params = Parameters({
+        "use_async": True,
+        "data_dir": './textbook_text_data/',
+        "cache": cache,
+        "name": name
+        })
+    full_retriever_params_k3 = Parameters({
+        "similarity_top_k": 3
+        })
+    full_retriever_params_k5 = Parameters({
+        "similarity_top_k": 5
+        })
+    full_retriever_params_k7 = Parameters({
+        "similarity_top_k": 7
+        })
+    full_response_params = Parameters({
+        "response_mode": "tree_summarize",
+        "text_qa_template": live_prompt_template
+        })
+    dummy_response_params = Parameters({
+        "response_mode": "no_text",
+        "text_qa_template": live_prompt_template
+        })
     
     # configure RAG pipelines
-    
+    config_k3 = QueryEngineConfig(index_params=full_index_params, 
+                                  retriever_params=full_retriever_params_k3, 
+                                  response_params=full_response_params)
+    config_k5 = QueryEngineConfig(index_params=full_index_params, 
+                                  retriever_params=full_retriever_params_k5, 
+                                  response_params=full_response_params)
+    config_k7 = QueryEngineConfig(index_params=full_index_params, 
+                                  retriever_params=full_retriever_params_k7, 
+                                  response_params=full_response_params)
+    dummy_config = QueryEngineConfig(index_params=full_index_params, 
+                                     retriever_params=full_retriever_params_k3, 
+                                     response_params=dummy_response_params)
+    config_list = [config_k3, config_k5, config_k7, dummy_config]
+
     # run RAG pipelines on curated questions
-    evaluator = GlyBot_Evaluator(
-        curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
-        documents=documents,
-        query_engine=query_engine
-        )
-    print("Generating Prompts...")
-    evaluator.get_prompts()
-    print("Evaluating Responses...")
-    evaluator.response_evaluation()
-    # dummy eval
-    print("Evaluating Dummy Responses...")
-    evaluator.set_query_engine(dummy_engine)
-    evaluator.response_evaluation()
-    print("***COMPLETE***")
+    for i, config in enumerate(config_list):
+        # configure query engine
+        query_engine = config.query_engine()
+        documents = config.index().documents
+        params = [config.index_params.params, config.retriever_params.params, config.response_params.params]
+        metadata = {}
+        for p in params:
+            metadata.update(dict(p))
+        print("==========================================================================")
+        print("Running RAGAS Evaluation with Config: ", config)
+        print("==========================================================================")
+        # pass to evaluator
+        evaluator = GlyBot_Evaluator(
+            curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
+            documents=documents,
+            query_engine=query_engine
+            )
+        print("-----| Loading Prompts |-----")
+        evaluator.get_prompts()
+        print("-----| Evaluating Responses |-----")
+        evaluator.response_evaluation(metadata=metadata)
+        print("==========================================================================")
+        print(f"Finished {i} of {len(config_list)} Evaluations")
+        print("==========================================================================")
+
+    print("***** COMPLETE *****")
     sys.exit(0)
 
 #################################################################################
