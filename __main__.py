@@ -1,4 +1,15 @@
 ### Main Application Script for Text Generation Backend ###
+"""
+Open Issues:
+
+1. Core RAG eval pipeline causes multi-client access of local Qdrant
+
+2. OpenAPI tool for GlyGen API needs swagger 2.0 converted to OpenAPI 3.0+
+2A. BEFORE TESTING: Consider Safety of API - LLM generated queries may be harmful
+
+3. Google Search tool
+
+"""
 
 # import libraries
 from llama_index.llms.openai import OpenAI
@@ -112,25 +123,29 @@ class QueryEngineConfig:
 
     Full implementation will include multi-parameter testing using a grid-search approach.
     """
+    @property
     def index(self) -> QdrantSetup:
         use_async = self.index_params.use_async
         data_dir = self.index_params.data_dir
         cache = self.index_params.cache
         name = self.index_params.name
         return QdrantSetup(use_async=use_async, data_dir=data_dir, cache=cache, name=name)
-
+    
+    @property
     def retriever(self) -> VectorIndexRetriever:
         similarity_top_k = self.retriever_params.similarity_top_k
-        return VectorIndexRetriever(index=self.index().index, similarity_top_k=similarity_top_k)
+        return VectorIndexRetriever(index=self.index.index, similarity_top_k=similarity_top_k)
 
+    @property
     def response_synthesizer(self) -> BaseSynthesizer:
         response_mode = self.response_params.response_mode
         text_qa_template = self.response_params.text_qa_template
         return get_response_synthesizer(response_mode=response_mode, text_qa_template=text_qa_template)
 
+    @property
     def query_engine(self) -> RetrieverQueryEngine:
-        return RetrieverQueryEngine(retriever=self.retriever(), 
-                                    response_synthesizer=self.response_synthesizer())
+        return RetrieverQueryEngine(retriever=self.retriever, 
+                                    response_synthesizer=self.response_synthesizer)
 
     def __init__(self, 
                  index_params: Parameters, 
@@ -140,6 +155,11 @@ class QueryEngineConfig:
         self.index_params = index_params
         self.retriever_params = retriever_params
         self.response_params = response_params
+        # setup
+        self.index
+        self.retriever
+        self.response_synthesizer
+        self.query_engine
 
     def grid_search(self, index_params, retriever_params, response_params):
         """Advances configuration to the next set of parameters"""
@@ -178,25 +198,26 @@ if mode == 'eval':
         })
     
     # configure RAG pipelines
-    config_k3 = QueryEngineConfig(index_params=full_index_params, 
-                                  retriever_params=full_retriever_params_k3, 
-                                  response_params=full_response_params)
-    config_k5 = QueryEngineConfig(index_params=full_index_params, 
-                                  retriever_params=full_retriever_params_k5, 
-                                  response_params=full_response_params)
-    config_k7 = QueryEngineConfig(index_params=full_index_params, 
-                                  retriever_params=full_retriever_params_k7, 
-                                  response_params=full_response_params)
-    dummy_config = QueryEngineConfig(index_params=full_index_params, 
-                                     retriever_params=full_retriever_params_k3, 
-                                     response_params=dummy_response_params)
+    config_k3 = dict(index_params=full_index_params, 
+                     retriever_params=full_retriever_params_k3, 
+                     response_params=full_response_params)
+    config_k5 = dict(index_params=full_index_params,
+                     retriever_params=full_retriever_params_k5,
+                     response_params=full_response_params)
+    config_k7 = dict(index_params=full_index_params,
+                     retriever_params=full_retriever_params_k7, 
+                     response_params=full_response_params)
+    dummy_config = dict(index_params=full_index_params,
+                        retriever_params=full_retriever_params_k3, 
+                        response_params=dummy_response_params)
     config_list = [config_k3, config_k5, config_k7, dummy_config]
 
     # run RAG pipelines on curated questions
     for i, config in enumerate(config_list):
         # configure query engine
-        query_engine = config.query_engine()
-        documents = config.index().documents
+        config = QueryEngineConfig(**config)
+        query_engine = config.query_engine
+        documents = config.index.documents
         params = [config.index_params.params, config.retriever_params.params, config.response_params.params]
         metadata = {}
         for p in params:
@@ -298,7 +319,7 @@ response_params = Parameters({
 config = QueryEngineConfig(index_params=index_params, retriever_params=retriever_params, response_params=response_params)
 
 # create tool
-TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine(), metadata=toolmeta) # calls sync client??
+TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine, metadata=toolmeta) # calls sync client??
 tool_list.append(TextbookQueryEngineTool)
 
 
