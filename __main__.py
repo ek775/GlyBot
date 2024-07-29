@@ -124,28 +124,25 @@ class QueryEngineConfig:
     Full implementation will include multi-parameter testing using a grid-search approach.
     """
     @property
-    def index(self) -> QdrantSetup:
-        use_async = self.index_params.use_async
-        data_dir = self.index_params.data_dir
-        cache = self.index_params.cache
-        name = self.index_params.name
-        return QdrantSetup(use_async=use_async, data_dir=data_dir, cache=cache, name=name)
-    
-    @property
-    def retriever(self) -> VectorIndexRetriever:
-        similarity_top_k = self.retriever_params.similarity_top_k
-        return VectorIndexRetriever(index=self.index.index, similarity_top_k=similarity_top_k)
-
-    @property
-    def response_synthesizer(self) -> BaseSynthesizer:
-        response_mode = self.response_params.response_mode
-        text_qa_template = self.response_params.text_qa_template
-        return get_response_synthesizer(response_mode=response_mode, text_qa_template=text_qa_template)
-
-    @property
     def query_engine(self) -> RetrieverQueryEngine:
-        return RetrieverQueryEngine(retriever=self.retriever, 
-                                    response_synthesizer=self.response_synthesizer)
+        """
+        Initialize a single query engine. 
+
+        Note that only one client can access the datase at the same time.Initializing the query engine will 
+        lock the database without server infrastructure.
+        """
+        db = QdrantSetup(use_async=self.index_params.use_async,
+                         data_dir=self.index_params.data_dir,
+                         cache=self.index_params.cache,
+                         name=self.index_params.name
+                         )
+        retriever = VectorIndexRetriever(index=db.index,
+                                         similarity_top_k=self.retriever_params.similarity_top_k
+                                         )
+        response_synthesizer = get_response_synthesizer(response_mode=self.response_params.response_mode,
+                                                        text_qa_template=self.response_params.text_qa_template
+                                                        )
+        return RetrieverQueryEngine(retriever=retriever, response_synthesizer=response_synthesizer)
 
     def __init__(self, 
                  index_params: Parameters, 
@@ -155,10 +152,7 @@ class QueryEngineConfig:
         self.index_params = index_params
         self.retriever_params = retriever_params
         self.response_params = response_params
-        # setup
-        self.index
-        self.retriever
-        self.response_synthesizer
+        # setup query engine
         self.query_engine
 
     def grid_search(self, index_params, retriever_params, response_params):
@@ -217,7 +211,6 @@ if mode == 'eval':
         # configure query engine
         config = QueryEngineConfig(**config)
         query_engine = config.query_engine
-        documents = config.index.documents
         params = [config.index_params.params, config.retriever_params.params, config.response_params.params]
         metadata = {}
         for p in params:
@@ -228,7 +221,6 @@ if mode == 'eval':
         # pass to evaluator
         evaluator = GlyBot_Evaluator(
             curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
-            documents=documents,
             query_engine=query_engine
             )
         print("-----| Loading Prompts |-----")

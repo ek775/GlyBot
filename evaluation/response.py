@@ -4,7 +4,7 @@
 import pandas as pd
 import os
 
-from llama_index.core import Document, Settings
+from llama_index.core import Settings
 from llama_index.core.query_engine import RetrieverQueryEngine
 from ragas.metrics import (
     # response metrics
@@ -22,11 +22,10 @@ class GlyBot_Evaluator():
     """
     Class for running response evaluation in the main experimentation pipeline.
     """
-    def __init__(self, curated_q_path: str, documents: Document, query_engine: RetrieverQueryEngine):
+    def __init__(self, curated_q_path: str, query_engine: RetrieverQueryEngine):
         """
         Initialize the evaluator with the test data and query engine.
         """
-        self.documents = documents
         self.curated_q_path = curated_q_path
         self.query_engine = query_engine
         self.ragas_metrics = [
@@ -75,7 +74,7 @@ class GlyBot_Evaluator():
             llm=llm,
             embeddings=embed_model
         )
-        results = [("metadata",pd.DataFrame(metadata)), 
+        results = [ 
                    ("ragas_curated",ragas_curated)
                    ]
         
@@ -94,7 +93,11 @@ class GlyBot_Evaluator():
 
         path = set_result_path() 
         os.system(f"mkdir {path}") 
-          
+
+        # save metadata
+        with open(f"{path}/metadata.txt", 'w') as f:
+            f.write(str(metadata))
+        # save results  
         for data in results:
             df = data[1].to_pandas()
             df.to_csv(f"{path}/{data[0]}.csv", encoding='utf-8', index=False)
