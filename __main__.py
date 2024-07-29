@@ -2,8 +2,6 @@
 """
 Open Issues:
 
-1. Core RAG eval pipeline causes multi-client access of local Qdrant
-
 2. OpenAPI tool for GlyGen API needs swagger 2.0 converted to OpenAPI 3.0+
 2A. BEFORE TESTING: Consider Safety of API - LLM generated queries may be harmful
 
@@ -227,8 +225,12 @@ if mode == 'eval':
         evaluator.get_prompts()
         print("-----| Evaluating Responses |-----")
         evaluator.response_evaluation(metadata=metadata)
+        # clean memory, release client from db if still locked
+        del query_engine
+        del config
+        del evaluator
         print("==========================================================================")
-        print(f"Finished {i} of {len(config_list)} Evaluations")
+        print(f"Finished {i+1} of {len(config_list)} Evaluations")
         print("==========================================================================")
 
     print("***** COMPLETE *****")
