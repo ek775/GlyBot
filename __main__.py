@@ -1,4 +1,15 @@
 ### Main Application Script for Text Generation Backend ###
+"""
+Open Issues:
+
+1. Core RAG eval pipeline causes multi-client access of local Qdrant
+
+2. OpenAPI tool for GlyGen API needs swagger 2.0 converted to OpenAPI 3.0+
+2A. BEFORE TESTING: Consider Safety of API - LLM generated queries may be harmful
+
+3. Google Search tool
+
+"""
 
 # import libraries
 from llama_index.llms.openai import OpenAI
@@ -19,19 +30,26 @@ import os
 import sys
 import logging
 
-#logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-#logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stderr))
-
 # CLI args
-if sys.argv[1] != None:
+# model: openai or ollama
+try:
     assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
     llm = sys.argv[1]
-elif sys.argv[1]==None:
+
+except IndexError:
     llm = 'openai'
-if sys.argv[2] != None:
+
+# mode: eval or chat
+try:
     assert sys.argv[2] in ['eval', 'chat'], "Please specify the mode of operation: 'eval' or 'chat'"
     mode = sys.argv[2]
-elif sys.argv[2]==None:
+    # log if eval mode
+    if mode == 'eval':
+        print("logging debug output")
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+        logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+
+except IndexError:
     mode = 'chat'
 
 #######################################################################################
@@ -85,24 +103,7 @@ elif llm == 'ollama':
     cache = 'llama-3_vector_data'
     name = 'llama-3_pipeline_cache'
 
-# initialize/connect to vector database, load documents, create index
-#db = QdrantSetup(use_async=True, data_dir='./textbook_text_data/', cache=cache, name=name)
-#index = db.index
-#documents = db.documents
-
-# configure retriever and query engine
-#print("Configuring Query Engine...")
-#retriever = VectorIndexRetriever(
-#    index=index,
-#    similarity_top_k=5
-#    )
-
-#response_synthesizer = get_response_synthesizer(response_mode="tree_summarize", text_qa_template=live_prompt_template)
-
-#query_engine = RetrieverQueryEngine(
-#    retriever=retriever, 
-#    response_synthesizer=response_synthesizer
-#    )
+# config tools
 
 class Parameters:
     """Base class for setting parameters"""
@@ -110,35 +111,41 @@ class Parameters:
         """Set parameters from a dictionary"""
         for i in param_dict:
             setattr(self, i, param_dict[i])
-
-    def __iter__(self):
-        for attr, value in self.__dict__.iteritems():
+    @property
+    def params(self):
+        for attr in self.__dict__:
+            value = getattr(self, attr)
             yield attr, value
-
 
 class QueryEngineConfig:
     """
-    Configures the Query Engine
+    Configures the Query Engine.
+
+    Full implementation will include multi-parameter testing using a grid-search approach.
     """
+    @property
     def index(self) -> QdrantSetup:
         use_async = self.index_params.use_async
         data_dir = self.index_params.data_dir
         cache = self.index_params.cache
         name = self.index_params.name
         return QdrantSetup(use_async=use_async, data_dir=data_dir, cache=cache, name=name)
-
+    
+    @property
     def retriever(self) -> VectorIndexRetriever:
         similarity_top_k = self.retriever_params.similarity_top_k
-        return VectorIndexRetriever(index=self.index().index, similarity_top_k=similarity_top_k)
+        return VectorIndexRetriever(index=self.index.index, similarity_top_k=similarity_top_k)
 
+    @property
     def response_synthesizer(self) -> BaseSynthesizer:
         response_mode = self.response_params.response_mode
         text_qa_template = self.response_params.text_qa_template
         return get_response_synthesizer(response_mode=response_mode, text_qa_template=text_qa_template)
 
+    @property
     def query_engine(self) -> RetrieverQueryEngine:
-        return RetrieverQueryEngine(retriever=self.retriever(), 
-                                    response_synthesizer=self.response_synthesizer())
+        return RetrieverQueryEngine(retriever=self.retriever, 
+                                    response_synthesizer=self.response_synthesizer)
 
     def __init__(self, 
                  index_params: Parameters, 
@@ -148,6 +155,11 @@ class QueryEngineConfig:
         self.index_params = index_params
         self.retriever_params = retriever_params
         self.response_params = response_params
+        # setup
+        self.index
+        self.retriever
+        self.response_synthesizer
+        self.query_engine
 
     def grid_search(self, index_params, retriever_params, response_params):
         """Advances configuration to the next set of parameters"""
@@ -159,37 +171,75 @@ class QueryEngineConfig:
 if mode == 'eval':
     print("Running RAGAS Evaluation...")
 
-    # make dummy index for baseline comparison
-    print("Setting up Dummy Index...")
-    dummy_db = QdrantSetup(
-        data_dir='./dummy_data_directory/',
-        cache='dummy_db',
-        name='dummy_db'
-        )
-    dummy_index = dummy_db.index
-    dummy_documents = dummy_db.documents
-    dummy_engine = dummy_index.as_query_engine(
-        llm=Settings.llm,
-        response_mode="tree_summarize"
-        )
+    # setting parameters
+    
+    full_index_params = Parameters({
+        "use_async": True,
+        "data_dir": './textbook_text_data/',
+        "cache": cache,
+        "name": name
+        })
+    full_retriever_params_k3 = Parameters({
+        "similarity_top_k": 3
+        })
+    full_retriever_params_k5 = Parameters({
+        "similarity_top_k": 5
+        })
+    full_retriever_params_k7 = Parameters({
+        "similarity_top_k": 7
+        })
+    full_response_params = Parameters({
+        "response_mode": "tree_summarize",
+        "text_qa_template": live_prompt_template
+        })
+    dummy_response_params = Parameters({
+        "response_mode": "no_text",
+        "text_qa_template": live_prompt_template
+        })
     
     # configure RAG pipelines
-    
+    config_k3 = dict(index_params=full_index_params, 
+                     retriever_params=full_retriever_params_k3, 
+                     response_params=full_response_params)
+    config_k5 = dict(index_params=full_index_params,
+                     retriever_params=full_retriever_params_k5,
+                     response_params=full_response_params)
+    config_k7 = dict(index_params=full_index_params,
+                     retriever_params=full_retriever_params_k7, 
+                     response_params=full_response_params)
+    dummy_config = dict(index_params=full_index_params,
+                        retriever_params=full_retriever_params_k3, 
+                        response_params=dummy_response_params)
+    config_list = [config_k3, config_k5, config_k7, dummy_config]
+
     # run RAG pipelines on curated questions
-    evaluator = GlyBot_Evaluator(
-        curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
-        documents=documents,
-        query_engine=query_engine
-        )
-    print("Generating Prompts...")
-    evaluator.get_prompts()
-    print("Evaluating Responses...")
-    evaluator.response_evaluation()
-    # dummy eval
-    print("Evaluating Dummy Responses...")
-    evaluator.set_query_engine(dummy_engine)
-    evaluator.response_evaluation()
-    print("***COMPLETE***")
+    for i, config in enumerate(config_list):
+        # configure query engine
+        config = QueryEngineConfig(**config)
+        query_engine = config.query_engine
+        documents = config.index.documents
+        params = [config.index_params.params, config.retriever_params.params, config.response_params.params]
+        metadata = {}
+        for p in params:
+            metadata.update(dict(p))
+        print("==========================================================================")
+        print("Running RAGAS Evaluation with Config: ", config)
+        print("==========================================================================")
+        # pass to evaluator
+        evaluator = GlyBot_Evaluator(
+            curated_q_path='./ground_truth_eval_queries/curated_queries.csv',
+            documents=documents,
+            query_engine=query_engine
+            )
+        print("-----| Loading Prompts |-----")
+        evaluator.get_prompts()
+        print("-----| Evaluating Responses |-----")
+        evaluator.response_evaluation(metadata=metadata)
+        print("==========================================================================")
+        print(f"Finished {i} of {len(config_list)} Evaluations")
+        print("==========================================================================")
+
+    print("***** COMPLETE *****")
     sys.exit(0)
 
 #################################################################################
@@ -269,7 +319,7 @@ response_params = Parameters({
 config = QueryEngineConfig(index_params=index_params, retriever_params=retriever_params, response_params=response_params)
 
 # create tool
-TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine(), metadata=toolmeta) # calls sync client??
+TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine, metadata=toolmeta) # calls sync client??
 tool_list.append(TextbookQueryEngineTool)
 
 

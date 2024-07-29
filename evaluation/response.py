@@ -6,22 +6,16 @@ import os
 
 from llama_index.core import Document, Settings
 from llama_index.core.query_engine import RetrieverQueryEngine
-from ragas.testset.generator import TestsetGenerator
-from ragas.testset.evolutions import simple, reasoning, multi_context
 from ragas.metrics import (
     # response metrics
     faithfulness,
     answer_relevancy,
-    answer_correctness, #gt
-    answer_similarity, #gt
+    answer_similarity,
     # retrieval metrics
     context_relevancy,
     context_precision,
-    context_recall, #gt
-    context_entity_recall,
-    context_utilization
+    context_recall,
 )
-from ragas.metrics.critique import harmfulness, correctness, coherence
 from ragas.integrations.llama_index import evaluate
 
 class GlyBot_Evaluator():
@@ -39,21 +33,14 @@ class GlyBot_Evaluator():
             # response metrics
             faithfulness,
             answer_relevancy,
-#            answer_correctness,
             answer_similarity,
             # retrieval metrics
             context_relevancy,
             context_precision,
             context_recall,
-#            context_entity_recall,
-#            context_utilization,
-            # voting critic llm metrics
-#            harmfulness,
-#            correctness,
-#            coherence
+
         ]
         self.curated_dict = None
-        self.synthetic_dict = None
 
     def set_query_engine(self, query_engine):
         """
@@ -65,24 +52,6 @@ class GlyBot_Evaluator():
         """
         Processes the test data for evaluation.
         """
-        # generate synthetic test set
-        generator = TestsetGenerator.from_llama_index(
-            generator_llm=Settings.llm,
-            critic_llm=Settings.llm,
-            embeddings=Settings.embed_model)
-        
-#        synthetic_test_set = generator.generate_with_llamaindex_docs(
-#            documents = self.documents,
-#            test_size=40,
-#            distributions={
-#                simple: 0.5, 
-#                reasoning: 0.25, 
-#                multi_context: 0.25}
-#            )
-        
-#        synthetic_dict = synthetic_test_set.to_dataset().to_dict()
-
-#        self.synthetic_dict = synthetic_dict # new attribute
 
         # load curated test set
         curated_test_set = pd.read_csv(self.curated_q_path)
@@ -90,22 +59,15 @@ class GlyBot_Evaluator():
         curated_dict = {"question":curated_test_set[columns[1]],
                         "ground_truth":curated_test_set[columns[2]]}
 
-        self.curated_dict = curated_dict # new attribute
+        self.curated_dict = curated_dict
 
-    def response_evaluation(self):
+    def response_evaluation(self, metadata: dict) -> None:
         """
-        Runs the evaluation pipeline.
+        Runs the evaluation pipeline. Results are stored as .csv files in a new directory.
         """
         llm = Settings.llm
         embed_model = Settings.embed_model
 
-#        ragas_synth = evaluate(
-#            query_engine = self.query_engine,
-#            metrics = self.ragas_metrics,
-#            dataset = self.synthetic_dict,
-#            llm=llm,
-#            embeddings=embed_model
-#        )
         ragas_curated = evaluate(
             query_engine = self.query_engine,
             metrics = self.ragas_metrics,
@@ -113,7 +75,7 @@ class GlyBot_Evaluator():
             llm=llm,
             embeddings=embed_model
         )
-        results = [#("ragas_synth",ragas_synth), 
+        results = [("metadata",pd.DataFrame(metadata)), 
                    ("ragas_curated",ragas_curated)
                    ]
         
@@ -135,4 +97,4 @@ class GlyBot_Evaluator():
           
         for data in results:
             df = data[1].to_pandas()
-            df.to_csv(f"{path}/{data[0]}.csv")
+            df.to_csv(f"{path}/{data[0]}.csv", encoding='utf-8', index=False)
