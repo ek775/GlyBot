@@ -83,11 +83,11 @@ class GlyBot_Evaluator():
             recursively tries to set a new result path for each evaluation run
             so results are not saved over each other.
             """
-            result_path = "./response_evaluation"
+            result_path = "./results/response_evaluation"
             loc = 0
             while os.path.exists(result_path):
                 loc+=1
-                result_path = f"./response_evaluation_{loc}"
+                result_path = f"./results/response_evaluation_{loc}"
 
             return result_path
 

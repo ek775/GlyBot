@@ -2,13 +2,13 @@
 """
 Open Issues:
 
-1. Core RAG eval pipeline causes multi-client access of local Qdrant
+1. RAGAS Evaluation fails to complete non-RAG baseline due to 
+HTTP/1.1 400 Bad Request error on the embeddings API.
 
-2. OpenAPI tool for GlyGen API needs swagger 2.0 converted to OpenAPI 3.0+
-2A. BEFORE TESTING: Consider Safety of API - LLM generated queries may be harmful
+2. Get google search tool to parse html docs, OR use openai tools?
+2.1 If using openai tools, use json parser to build GlyGen API info tool.
 
-3. Google Search tool
-
+3. Implement Streamlit App for Chat Interface
 """
 
 # import libraries
@@ -46,7 +46,7 @@ try:
     # log if eval mode
     if mode == 'eval':
         print("logging debug output")
-        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
         logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
 except IndexError:
@@ -188,7 +188,9 @@ if mode == 'eval':
         })
     dummy_response_params = Parameters({
         "response_mode": "no_text",
-        "text_qa_template": live_prompt_template
+        "text_qa_template": PromptTemplate(
+            ("{query_str}"), prompt_type=PromptType.CUSTOM
+            )
         })
     
     # configure RAG pipelines
@@ -216,7 +218,7 @@ if mode == 'eval':
         for p in params:
             metadata.update(dict(p))
         print("==========================================================================")
-        print("Running RAGAS Evaluation with Config: ", config)
+        print("Running RAGAS Evaluation with Config: ", metadata)
         print("==========================================================================")
         # pass to evaluator
         evaluator = GlyBot_Evaluator(
@@ -227,8 +229,12 @@ if mode == 'eval':
         evaluator.get_prompts()
         print("-----| Evaluating Responses |-----")
         evaluator.response_evaluation(metadata=metadata)
+        # clean memory, release client from db if still locked
+        del query_engine
+        del config
+        del evaluator
         print("==========================================================================")
-        print(f"Finished {i} of {len(config_list)} Evaluations")
+        print(f"Finished {i+1} of {len(config_list)} Evaluations")
         print("==========================================================================")
 
     print("***** COMPLETE *****")
@@ -236,20 +242,21 @@ if mode == 'eval':
 
 #################################################################################
 # configure agent
-from llama_index.tools.openapi import OpenAPIToolSpec # glygen api: https://api.glygen.org/swagger.json
-from llama_index.tools.google import GoogleSearchToolSpec
+# from llama_index.tools.openapi import OpenAPIToolSpec # glygen api: https://api.glygen.org/swagger.json
+from llama_index.core.tools.tool_spec.base import BaseToolSpec
 from llama_index.readers.papers import PubmedReader
 from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
+from llama_index.core.schema import Document
 from pydantic import BaseModel, Field
 from llama_index.agent.openai import OpenAIAssistantAgent
 import requests
-import json
+#import json
+import urllib.parse
 
 # tools
 tool_list = []
 
-# glygen api tool
-"""Issues: How to Protect? Convert Swagger into OpenAPI"""
+### glygen api info tool
 #f = requests.get('https://api.glygen.org/swagger.json').text
 #api_spec = json.loads(f)
 
@@ -257,12 +264,52 @@ tool_list = []
 #tool_list.append(GlyGenAPITool)
 
 
-# google search tool
-"""Looks interesting, literally no documentation"""
-# GoogleSearchTool = GoogleSearchToolSpec()
+### google search tool @glygen
+
+# load google api key
+with open('./SENSITIVE/google_api_key.txt', 'r') as f:
+    google_custom_search_key = f.read().strip()
+
+# define tool from function
+class GlyGenGoogleSearch(BaseModel):
+    """pydantic object describing how to get information from GlyGen to the llm"""
+    query: str = Field(..., description="Natural Language Query to search GlyGen web pages and API docs for.")
+
+def glygen_google_search(query: str,
+                         key: str = google_custom_search_key, 
+                         engine: str = 'e41846d71c58e4f2a',
+                         num: int = 5):
+    """
+    Searches the GlyGen website to find relevant information for navigating the site
+    and using the GlyGen APIs to access data.
+    """
+    url_template = ("https://www.googleapis.com/customsearch/v1?key={key}&cx={engine}&q={query}")
+    url = url_template.format(key=key, engine=engine, query=urllib.parse.quote_plus(query))
+
+    if num is not None:
+        if not 1 <= num <= 10:
+            raise ValueError("num should be an integer between 1 and 10, inclusive")
+        url += f"&num={num}"
+    
+    response = requests.get(url)
+    pages = [Document(text=response.text)]
+
+    # sift through the response to get the relevant information
+    index = VectorStoreIndex.from_documents(pages)
+    retriever = index.as_retriever()
+    results = retriever.retrieve(query)
+    return [r.get_content() for r in results]
+
+GoogleSearchTool = FunctionTool.from_defaults(
+    fn = glygen_google_search,
+    name = "glygen_google_search_tool",
+    description="Use this tool to search the GlyGen website for information on how to Navigate GlyGen and use the GlyGen APIs.",
+    fn_schema = GlyGenGoogleSearch)
+
+tool_list.append(GoogleSearchTool)
 
 
-# pubmed reader tool
+### pubmed reader tool
 class PubMedQuery(BaseModel):
     """pydantic object describing how to search pubmed to the llm"""
     query: str = Field(..., description="Natural Language Query to search for on Pubmed.")
@@ -270,7 +317,7 @@ class PubMedQuery(BaseModel):
 def pubmed_search(query: str):
     """Retrieves abstracts of relevant papers from PubMed"""
     reader = PubmedReader()
-    papers = reader.load_data(search_query=query, max_results=10)
+    papers = reader.load_data(search_query=query, max_results=5)
     index = VectorStoreIndex.from_documents(papers)
     retriever = index.as_retriever()
     results = retriever.retrieve(query)
@@ -285,7 +332,7 @@ PubmedSearchTool = FunctionTool.from_defaults(
 tool_list.append(PubmedSearchTool)
 
 
-# query engine tool for "Essentials of Glycobiology" textbook
+### query engine tool for "Essentials of Glycobiology" textbook
 toolmeta = ToolMetadata(
     name="essentials_of_glycobiology",
     description="Use this tool to provide entry-level information on glycobiology from the textbook 'Essentials of Glycobiology'.",
@@ -315,7 +362,7 @@ TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine, meta
 tool_list.append(TextbookQueryEngineTool)
 
 
-# agent
+### agent ###
 agent = OpenAIAssistantAgent.from_new(
     name="GlyBot",
     instructions=instructions,
@@ -335,12 +382,32 @@ if mode == "chat":
         user_input = input("User: ")
         if user_input == "exit":
             print("Goodbye!")
-            break
+            sys.exit(0)
         else:
             print("==========================================================================")
             print("GlyBot:")
             agent.chat(user_input)
             continue
-        
+#################################################################################
+""" WIP """       
+# ***Streamlit App***
+import streamlit as st
 
-# Evaluation
+st.title("GlyBot")
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# React to user input
+if prompt := st.chat_input("How can I help you?"):
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
