@@ -17,11 +17,11 @@ from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, get_response_synthesizer, VectorStoreIndex
-from llama_index.core.response_synthesizers.base import BaseSynthesizer
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.prompts.base import PromptTemplate
 from llama_index.core.prompts.prompt_type import PromptType
+from pydantic.v1.main import BaseModel
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 from evaluation.response import GlyBot_Evaluator
@@ -103,7 +103,7 @@ elif llm == 'ollama':
     cache = 'llama-3_vector_data'
     name = 'llama-3_pipeline_cache'
 
-# config tools
+# custom configs
 
 class Parameters:
     """Base class for setting parameters"""
@@ -128,20 +128,12 @@ class QueryEngineConfig:
         """
         Initialize a single query engine. 
 
-        Note that only one client can access the datase at the same time.Initializing the query engine will 
+        Note that only one client can access the datase at the same time. Initializing the query engine will 
         lock the database without server infrastructure.
         """
-        db = QdrantSetup(use_async=self.index_params.use_async,
-                         data_dir=self.index_params.data_dir,
-                         cache=self.index_params.cache,
-                         name=self.index_params.name
-                         )
-        retriever = VectorIndexRetriever(index=db.index,
-                                         similarity_top_k=self.retriever_params.similarity_top_k
-                                         )
-        response_synthesizer = get_response_synthesizer(response_mode=self.response_params.response_mode,
-                                                        text_qa_template=self.response_params.text_qa_template
-                                                        )
+        db = QdrantSetup(**dict(self.index_params.params))
+        retriever = VectorIndexRetriever(index=db.index, **dict(self.retriever_params.params))
+        response_synthesizer = get_response_synthesizer(**dict(self.response_params.params))
         return RetrieverQueryEngine(retriever=retriever, response_synthesizer=response_synthesizer)
 
     def __init__(self, 
@@ -187,8 +179,8 @@ if mode == 'eval':
         "text_qa_template": live_prompt_template
         })
     dummy_response_params = Parameters({
-        "response_mode": "no_text",
-        "text_qa_template": PromptTemplate(
+        "response_mode": "generation",
+        "simple_template": PromptTemplate(
             ("{query_str}"), prompt_type=PromptType.CUSTOM
             )
         })
@@ -206,7 +198,11 @@ if mode == 'eval':
     dummy_config = dict(index_params=full_index_params,
                         retriever_params=full_retriever_params_k3, 
                         response_params=dummy_response_params)
-    config_list = [config_k3, config_k5, config_k7, dummy_config]
+    config_list = [
+        config_k3, 
+        config_k5, 
+        config_k7, 
+        dummy_config]
 
     # run RAG pipelines on curated questions
     for i, config in enumerate(config_list):
@@ -243,7 +239,6 @@ if mode == 'eval':
 #################################################################################
 # configure agent
 # from llama_index.tools.openapi import OpenAPIToolSpec # glygen api: https://api.glygen.org/swagger.json
-from llama_index.core.tools.tool_spec.base import BaseToolSpec
 from llama_index.readers.papers import PubmedReader
 from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
 from llama_index.core.schema import Document

@@ -125,8 +125,8 @@ class QdrantSetup:
                     name=name,
                     transformations=[
                         SentenceSplitter(
-                            chunk_size=120,
-                            chunk_overlap=20
+                            chunk_size=240,
+                            chunk_overlap=40
                         ),
                         TitleExtractor(
                             llm=Settings.llm,
