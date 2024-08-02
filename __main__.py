@@ -2,13 +2,8 @@
 """
 Open Issues:
 
-1. RAGAS Evaluation fails to complete non-RAG baseline due to 
-HTTP/1.1 400 Bad Request error on the embeddings API.
+1. Implement Streamlit App for Chat Interface
 
-2. Get google search tool to parse html docs, OR use openai tools?
-2.1 If using openai tools, use json parser to build GlyGen API info tool.
-
-3. Implement Streamlit App for Chat Interface
 """
 
 # import libraries
@@ -241,12 +236,16 @@ if mode == 'eval':
 # from llama_index.tools.openapi import OpenAPIToolSpec # glygen api: https://api.glygen.org/swagger.json
 from llama_index.readers.papers import PubmedReader
 from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
-from llama_index.core.schema import Document
+from llama_index.core.schema import Document, BaseNode
+from llama_index.core.node_parser import HTMLNodeParser
 from pydantic import BaseModel, Field
 from llama_index.agent.openai import OpenAIAssistantAgent
 import requests
 #import json
 import urllib.parse
+from llama_index.core import SummaryIndex
+from llama_index.readers.web import SimpleWebPageReader
+from IPython.display import Markdown, display
 
 # tools
 tool_list = []
@@ -285,12 +284,12 @@ def glygen_google_search(query: str,
         if not 1 <= num <= 10:
             raise ValueError("num should be an integer between 1 and 10, inclusive")
         url += f"&num={num}"
-    
-    response = requests.get(url)
-    pages = [Document(text=response.text)]
+
+    # turn search results into documents
+    documents = SimpleWebPageReader(html_to_text=True).load_data([url])
 
     # sift through the response to get the relevant information
-    index = VectorStoreIndex.from_documents(pages)
+    index = SummaryIndex.from_documents(documents)
     retriever = index.as_retriever()
     results = retriever.retrieve(query)
     return [r.get_content() for r in results]
@@ -381,7 +380,7 @@ if mode == "chat":
         else:
             print("==========================================================================")
             print("GlyBot:")
-            agent.chat(user_input)
+            print(agent.chat(user_input))
             continue
 #################################################################################
 """ WIP """       
