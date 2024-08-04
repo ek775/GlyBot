@@ -37,8 +37,7 @@ class GlyBot_Evaluator():
             context_relevancy,
             context_precision,
             context_recall,
-
-        ]
+            ]   
         self.curated_dict = None
 
     def set_query_engine(self, query_engine):
@@ -72,7 +71,8 @@ class GlyBot_Evaluator():
             metrics = self.ragas_metrics,
             dataset = self.curated_dict,
             llm=llm,
-            embeddings=embed_model
+            embeddings=embed_model,
+            raise_exceptions=False
         )
         results = [ 
                    ("ragas_curated",ragas_curated)
