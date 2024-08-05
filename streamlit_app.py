@@ -113,6 +113,7 @@ class QueryEngineConfig:
     """
     Configures the Query Engine.
     """
+    @property
     def query_engine(self) -> RetrieverQueryEngine:
         """
         Initialize a single query engine. 
@@ -244,7 +245,7 @@ response_params = Parameters({
 config = QueryEngineConfig(index_params=index_params, retriever_params=retriever_params, response_params=response_params)
 
 # create tool
-TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine(), metadata=toolmeta) # calls sync client??
+TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine, metadata=toolmeta) # calls sync client??
 tool_list.append(TextbookQueryEngineTool)
 
 
