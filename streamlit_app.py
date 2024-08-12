@@ -13,12 +13,21 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.prompts.base import PromptTemplate
 from llama_index.core.prompts.prompt_type import PromptType
 from pydantic.v1.main import BaseModel
+from llama_index.readers.papers import PubmedReader
+from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
+from pydantic import BaseModel, Field
+from llama_index.agent.openai import OpenAIAssistantAgent
+import urllib.parse
+from llama_index.core import SummaryIndex
+from llama_index.readers.web import SimpleWebPageReader
+#from qdrant_client import QdrantClient
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 # other utilities
 import os
 import sys
 import logging
+from io import StringIO
 
 
 
@@ -109,164 +118,182 @@ class Parameters:
             value = getattr(self, attr)
             yield attr, value
 
-class QueryEngineConfig:
-    """
-    Configures the Query Engine.
-    """
-    @property
-    def query_engine(self) -> RetrieverQueryEngine:
-        """
-        Initialize a single query engine. 
-
-        Note that only one client can access the datase at the same time. Initializing the query engine will 
-        lock the database without server infrastructure.
-        """
-        db = QdrantSetup(**dict(self.index_params.params))
-        retriever = VectorIndexRetriever(index=db.index, **dict(self.retriever_params.params))
-        response_synthesizer = get_response_synthesizer(**dict(self.response_params.params))
-        return RetrieverQueryEngine(retriever=retriever, response_synthesizer=response_synthesizer)
-
-    def __init__(self, 
-                 index_params: Parameters, 
-                 retriever_params: Parameters, 
-                 response_params: Parameters,
-                 ):
-        self.index_params = index_params
-        self.retriever_params = retriever_params
-        self.response_params = response_params
-        # lazy init query engine
-
+def query_engine_config(index_params: Parameters, retriever_params: Parameters, response_params: Parameters):
+    db = QdrantSetup(**dict(index_params.params))
+    retriever = VectorIndexRetriever(index=db.index, **dict(retriever_params.params))
+    response_synthesizer = get_response_synthesizer(**dict(response_params.params))
+    return RetrieverQueryEngine(retriever=retriever, response_synthesizer=response_synthesizer)
 
 #################################################################################
 # configure agent
-from llama_index.readers.papers import PubmedReader
-from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
-from pydantic import BaseModel, Field
-from llama_index.agent.openai import OpenAIAssistantAgent
-import urllib.parse
-from llama_index.core import SummaryIndex
-from llama_index.readers.web import SimpleWebPageReader
 
-# tools
-tool_list = []
-
+# build tools
 
 ### google search tool @glygen
+def build_google_search_tool():
+    print("Building Google Search Tool")
+    # load google api key
+    with open('./SENSITIVE/google_api_key.txt', 'r') as f:
+        google_custom_search_key = f.read().strip()
 
-# load google api key
-with open('./SENSITIVE/google_api_key.txt', 'r') as f:
-    google_custom_search_key = f.read().strip()
+    # define tool from function
+    class GlyGenGoogleSearch(BaseModel):
+        """pydantic object describing how to get information from GlyGen to the llm"""
+        query: str = Field(..., description="Natural Language Query to search GlyGen web pages and API docs for.")
 
-# define tool from function
-class GlyGenGoogleSearch(BaseModel):
-    """pydantic object describing how to get information from GlyGen to the llm"""
-    query: str = Field(..., description="Natural Language Query to search GlyGen web pages and API docs for.")
+    def glygen_google_search(query: str,
+                             key: str = google_custom_search_key, 
+                             engine: str = 'e41846d71c58e4f2a',
+                             num: int = 5):
+        """
+        Searches the GlyGen website to find relevant information for navigating the site
+        and using the GlyGen APIs to access data.
+        """
+        url_template = ("https://www.googleapis.com/customsearch/v1?key={key}&cx={engine}&q={query}")
+        url = url_template.format(key=key, engine=engine, query=urllib.parse.quote_plus(query))
 
-def glygen_google_search(query: str,
-                         key: str = google_custom_search_key, 
-                         engine: str = 'e41846d71c58e4f2a',
-                         num: int = 5):
-    """
-    Searches the GlyGen website to find relevant information for navigating the site
-    and using the GlyGen APIs to access data.
-    """
-    url_template = ("https://www.googleapis.com/customsearch/v1?key={key}&cx={engine}&q={query}")
-    url = url_template.format(key=key, engine=engine, query=urllib.parse.quote_plus(query))
+        if num is not None:
+            if not 1 <= num <= 10:
+                raise ValueError("num should be an integer between 1 and 10, inclusive")
+            url += f"&num={num}"
 
-    if num is not None:
-        if not 1 <= num <= 10:
-            raise ValueError("num should be an integer between 1 and 10, inclusive")
-        url += f"&num={num}"
+        # turn search results into documents
+        documents = SimpleWebPageReader(html_to_text=True).load_data([url])
 
-    # turn search results into documents
-    documents = SimpleWebPageReader(html_to_text=True).load_data([url])
+        # sift through the response to get the relevant information
+        index = SummaryIndex.from_documents(documents)
+        retriever = index.as_retriever()
+        results = retriever.retrieve(query)
+        return [r.get_content() for r in results]
 
-    # sift through the response to get the relevant information
-    index = SummaryIndex.from_documents(documents)
-    retriever = index.as_retriever()
-    results = retriever.retrieve(query)
-    return [r.get_content() for r in results]
+    GoogleSearchTool = FunctionTool.from_defaults(
+        fn = glygen_google_search,
+        name = "glygen_google_search_tool",
+        description="Use this tool to search the GlyGen website for information on how to Navigate GlyGen and use the GlyGen APIs.",
+        fn_schema = GlyGenGoogleSearch)
 
-GoogleSearchTool = FunctionTool.from_defaults(
-    fn = glygen_google_search,
-    name = "glygen_google_search_tool",
-    description="Use this tool to search the GlyGen website for information on how to Navigate GlyGen and use the GlyGen APIs.",
-    fn_schema = GlyGenGoogleSearch)
-
-tool_list.append(GoogleSearchTool)
+    print("Google Search Tool Built")
+    return GoogleSearchTool
 
 
 ### pubmed reader tool
-class PubMedQuery(BaseModel):
-    """pydantic object describing how to search pubmed to the llm"""
-    query: str = Field(..., description="Natural Language Query to search for on Pubmed.")
+def build_pubmed_search_tool():
+    print("Building PubMed Search Tool")
+    class PubMedQuery(BaseModel):
+        """pydantic object describing how to search pubmed to the llm"""
+        query: str = Field(..., description="Natural Language Query to search for on Pubmed.")
 
-def pubmed_search(query: str):
-    """Retrieves abstracts of relevant papers from PubMed"""
-    reader = PubmedReader()
-    papers = reader.load_data(search_query=query, max_results=5)
-    index = VectorStoreIndex.from_documents(papers)
-    retriever = index.as_retriever()
-    results = retriever.retrieve(query)
-    return [r.get_content() for r in results]
+    def pubmed_search(query: str):
+        """Retrieves abstracts of relevant papers from PubMed"""
+        reader = PubmedReader()
+        papers = reader.load_data(search_query=query, max_results=5)
+        index = VectorStoreIndex.from_documents(papers)
+        retriever = index.as_retriever()
+        results = retriever.retrieve(query)
+        return [r.get_content() for r in results]
 
-PubmedSearchTool = FunctionTool.from_defaults(
-    fn= pubmed_search,
-    name="pubmed_search_tool",
-    description="Use this tool to search for recent studies on PubMed that are related to the user's query.",
-    fn_schema=PubMedQuery
-    )
-tool_list.append(PubmedSearchTool)
-
+    PubmedSearchTool = FunctionTool.from_defaults(
+        fn= pubmed_search,
+        name="pubmed_search_tool",
+        description="Use this tool to search for recent studies on PubMed that are related to the user's query.",
+        fn_schema=PubMedQuery
+        )
+    print("PubMed Search Tool Built")
+    return PubmedSearchTool
+    
 
 ### query engine tool for "Essentials of Glycobiology" textbook
-toolmeta = ToolMetadata(
-    name="essentials_of_glycobiology",
-    description="Use this tool to provide entry-level information on glycobiology from the textbook 'Essentials of Glycobiology'.",
-)
+def build_textbook_tool():
+    print("Building Textbook Query Engine Tool")
+    toolmeta = ToolMetadata(
+        name="essentials_of_glycobiology",
+        description="Use this tool to provide entry-level information on glycobiology from the textbook 'Essentials of Glycobiology'.",
+    )
 
-# configure query engine
-index_params = Parameters({
-    "use_async": False,
-    "data_dir": './textbook_text_data/',
-    "cache": cache,
-    "name": name
-    })
+    # configure query engine
+    index_params = Parameters({
+        "use_async": False,
+        #"local_client": QdrantClient("http://localhost:6333"),
+        "data_dir": './textbook_text_data/',
+        "cache": cache,
+        "name": name
+        })
 
-retriever_params = Parameters({
-    "similarity_top_k": 5
-    })
+    retriever_params = Parameters({
+        "similarity_top_k": 5
+        })
 
-response_params = Parameters({
-    "response_mode": "tree_summarize",
-    "text_qa_template": live_prompt_template
-    })
+    response_params = Parameters({
+        "response_mode": "tree_summarize",
+        "text_qa_template": live_prompt_template
+        })
 
-config = QueryEngineConfig(index_params=index_params, retriever_params=retriever_params, response_params=response_params)
-
-# create tool
-TextbookQueryEngineTool = QueryEngineTool(query_engine=config.query_engine, metadata=toolmeta) # calls sync client??
-tool_list.append(TextbookQueryEngineTool)
-
+    # create tool
+    TextbookQueryEngineTool = QueryEngineTool(
+        query_engine=query_engine_config(
+            index_params=index_params, 
+            retriever_params=retriever_params, 
+            response_params=response_params), 
+        metadata=toolmeta
+        )
+    
+    print("Textbook Query Engine Tool Built")
+    return TextbookQueryEngineTool
+    
 
 ### agent ###
-print("Creating Agent")
-agent = OpenAIAssistantAgent.from_new(
-    name="GlyBot",
-    instructions=instructions,
-    model="gpt-3.5-turbo",
-    tools=tool_list,
-    verbose=True,
-    run_retrieve_sleep_time=1.0
-    )
+@st.cache_resource
+def build_agent(thread_id: str = None):
+    print("Building Agent")
+    agent = OpenAIAssistantAgent.from_existing(
+        assistant_id="asst_9PMwjrFuQdIAlc82Mgutd92o",
+        thread_id=thread_id,
+        tools=[build_google_search_tool(), build_pubmed_search_tool(), build_textbook_tool()],
+        verbose=True,
+        run_retrieve_sleep_time=1.0
+        )
+    print("Agent Built")
+    return agent
+
+# custom stream handler to capture tool output from stdout and stream it back to st.write_stream
+class StreamCapture:
+    def __init__(self):
+        self.stdout = sys.stdout
+        self.buffer = StringIO()
+        sys.stdout = self.buffer
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout = self.stdout
+
+    def get_output(self):
+        self.buffer.seek(0)
+        output = self.buffer.getvalue()
+        self.buffer.close()
+        return output
+
+# Initialize stream capture
+stream_capture = StreamCapture()
+
+def stream_output():
+    with stream_capture:
+        response = agent.chat(prompt)
+    tool_output = stream_capture.get_output()
+    return response, tool_output
 
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
+
 if mode == "chat":
 
-    # Initialize chat history
+    # Initialize chat history, tool output history
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    
+    # initialize agent, cached so not rebuilt on each rerun
+    agent = build_agent()
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
@@ -275,6 +302,7 @@ if mode == "chat":
 
     # React to user input
     response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
+    tool_output = ""
 
     if prompt := st.chat_input("How can I help you?"):
         # Display user message in chat message container
@@ -282,11 +310,12 @@ if mode == "chat":
             st.markdown(prompt)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
-        # Get assistant response
-        response = agent.chat(prompt)
+        # get response from assistant
+        response, tool_output = stream_output()
 
-    # Display assistant response in chat message container
+    # Display assistant response in chat message container (with tool output from stdout)
     with st.chat_message("assistant"):
+        st.text(tool_output)
         st.markdown(response)
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
