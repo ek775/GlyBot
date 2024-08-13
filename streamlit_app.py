@@ -72,11 +72,12 @@ live_prompt_template = PromptTemplate(
 
 if llm == 'openai':
     # load sensitive stuffs
-    key = None
+    # handled by streamlit secrets
+    """key = None
     with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
         key = f.read().strip()
     # connect to OpenAI
-    os.environ['OPENAI_API_KEY'] = key
+    os.environ['OPENAI_API_KEY'] = key"""
     Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=instructions)
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small", 
@@ -133,8 +134,11 @@ def query_engine_config(index_params: Parameters, retriever_params: Parameters, 
 def build_google_search_tool():
     print("Building Google Search Tool")
     # load google api key
-    with open('./SENSITIVE/google_api_key.txt', 'r') as f:
-        google_custom_search_key = f.read().strip()
+    # handled by streamlit secrets
+    """with open('./SENSITIVE/google_api_key.txt', 'r') as f:
+        google_custom_search_key = f.read().strip()"""
+    
+    google_custom_search_key = os.environ['GOOGLE_API_KEY']
 
     # define tool from function
     class GlyGenGoogleSearch(BaseModel):
