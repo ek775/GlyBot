@@ -13,13 +13,15 @@ import qdrant_client
 import os
 from asyncio import Semaphore
 import asyncio
+from typing import Optional
 
 class QdrantSetup:
     """
     Helper class for initializing the Vector Store
     """
-    def __init__(self, 
+    def __init__(self,
                  use_async: bool,
+                 local_client: Optional[qdrant_client.QdrantClient] = None, 
                  data_dir: str = './textbook_text_data/', 
                  cache: str = 'llama-3-cache', 
                  name: str = 'llama-3-cache',
@@ -38,12 +40,23 @@ class QdrantSetup:
         self.documents = None
         self.index = None
         # initialize
-        if os.path.exists(f"./{cache}/qdrant.db"):
+        # with local server client from docker image... WIP
+        if local_client is not None:
+            self.client = local_client
+            self.vector_store = QdrantVectorStore(
+                collection_name="glyco_store",
+                client=self.client,
+            )
+            self.documents = self.read_data(loc=self.data_dir)
+            self.index = self._load_index(vector_store=self.vector_store)
+        # with existing vector store
+        elif os.path.exists(f"./{cache}/qdrant.db"):
             print("Connecting to existing vector DB...")
             self._set_client(use_async=self.use_async)
             self._connect_to_vector_store(use_async=self.use_async)
             self.documents = self.read_data(loc=self.data_dir)
             self.index = self._load_index(vector_store=self.vector_store)
+        # from scratch with new params
         else:
             print("Setting up new vector DB...")
             self._set_client(use_async=self.use_async)

@@ -28,6 +28,7 @@ import os
 import sys
 import logging
 from io import StringIO
+import asyncio
 
 
 
@@ -185,7 +186,7 @@ def build_pubmed_search_tool():
     def pubmed_search(query: str):
         """Retrieves abstracts of relevant papers from PubMed"""
         reader = PubmedReader()
-        papers = reader.load_data(search_query=query, max_results=5)
+        papers = reader.load_data(search_query=query, max_results=10)
         index = VectorStoreIndex.from_documents(papers)
         retriever = index.as_retriever()
         results = retriever.retrieve(query)
@@ -278,14 +279,6 @@ class StreamCapture:
     def getvalue(self):
         return self.stream.getvalue()
 
-# Initialize stream capture
-stream_capture = StreamCapture()
-
-def stream_output():
-    with stream_capture:
-        response = agent.chat(prompt)
-    return response
-
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
 
@@ -294,14 +287,18 @@ if mode == "chat":
     # Initialize chat history, tool output history
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "tool_output" not in st.session_state:
+        st.session_state.tool_output = []
     
     # initialize agent, cached so not rebuilt on each rerun
     agent = build_agent()
 
-    # Display chat messages from history on app rerun
+    # Display chat messages, tool calls from history on app rerun
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+    with st.sidebar:
+        st.sidebar.title("Agent Tool Calls")
 
     # React to user input
     response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
@@ -313,11 +310,32 @@ if mode == "chat":
             st.markdown(prompt)
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
-        # get response from assistant
-        while response := stream_output():
-            st.write(stream_capture.getvalue())
 
-    # Display assistant response in chat message container (with tool output from stdout)
+        # get response from assistant
+        # caputre tool calls from stdout
+        stream_capture = StreamCapture()
+
+        def get_response(prompt):
+            with stream_capture:
+                response = agent.chat(prompt)
+            return response
+        
+        async def get_response_async(prompt):
+            with stream_capture:
+                response = await agent.achat(prompt)
+            return response
+        
+        response = "waiting"
+        with st.spinner("Thinking..."):
+            response = asyncio.run(get_response_async(prompt))
+            stream_capture.flush()
+            tool_call = stream_capture.getvalue()
+            st.session_state.tool_output.append(tool_call)
+            with st.sidebar:
+                for tool_call in st.session_state.tool_output:
+                    st.text(tool_call)
+
+    # Display assistant response in chat message container
     with st.chat_message("assistant"):
         st.markdown(response)
     # Add assistant response to chat history
