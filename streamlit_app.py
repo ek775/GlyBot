@@ -46,7 +46,6 @@ try:
     mode = sys.argv[2]
     # log if eval mode
     if mode == 'eval':
-        print("logging debug output")
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
         logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
@@ -259,20 +258,25 @@ def build_agent(thread_id: str = None):
 class StreamCapture:
     def __init__(self):
         self.stdout = sys.stdout
-        self.buffer = StringIO()
-        sys.stdout = self.buffer
+        self.stream = StringIO()
+
+    def write(self, data):
+        self.stream.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.stream.flush()
+        self.stdout.flush()
 
     def __enter__(self):
+        sys.stdout = self
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout = self.stdout
 
-    def get_output(self):
-        self.buffer.seek(0)
-        output = self.buffer.getvalue()
-        self.buffer.close()
-        return output
+    def getvalue(self):
+        return self.stream.getvalue()
 
 # Initialize stream capture
 stream_capture = StreamCapture()
@@ -280,8 +284,7 @@ stream_capture = StreamCapture()
 def stream_output():
     with stream_capture:
         response = agent.chat(prompt)
-    tool_output = stream_capture.get_output()
-    return response, tool_output
+    return response
 
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
@@ -302,7 +305,7 @@ if mode == "chat":
 
     # React to user input
     response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
-    tool_output = ""
+    
 
     if prompt := st.chat_input("How can I help you?"):
         # Display user message in chat message container
@@ -311,11 +314,11 @@ if mode == "chat":
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         # get response from assistant
-        response, tool_output = stream_output()
+        while response := stream_output():
+            st.write(stream_capture.getvalue())
 
     # Display assistant response in chat message container (with tool output from stdout)
     with st.chat_message("assistant"):
-        st.text(tool_output)
         st.markdown(response)
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
