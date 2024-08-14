@@ -1,7 +1,6 @@
 import yaml
-import os
 
-with open("conda_env.yml") as file_handle:
+with open("streamlitenv.yml") as file_handle:
     environment_data = yaml.safe_load(file_handle)
 
 with open("requirements.txt", "w") as file_handle:
