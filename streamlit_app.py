@@ -4,9 +4,7 @@ st.title("GlyBot: Prototype Glycobiology Assistant")
 
 # import libraries
 from llama_index.llms.openai import OpenAI
-from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, get_response_synthesizer, VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
@@ -25,35 +23,23 @@ from pipelines.vector_store import QdrantSetup
 # other utilities
 import os
 import sys
-import logging
 from io import StringIO
 import asyncio
 
-
-
-# CLI args
-# model: openai or ollama
-try:
-    assert sys.argv[1] in ['openai', 'ollama'], "Please specify the LLM to employ: 'openai' or 'ollama'"
-    llm = sys.argv[1]
-
-except IndexError:
-    llm = 'openai'
-
-# mode: eval or chat
-try:
-    assert sys.argv[2] in ['eval', 'chat'], "Please specify the mode of operation: 'eval' or 'chat'"
-    mode = sys.argv[2]
-    # log if eval mode
-    if mode == 'eval':
-        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-        logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
-
-except IndexError:
-    mode = 'chat'
-
 #######################################################################################
-# choose model at exe, apply settings
+# apply settings
+
+# load keys
+# for testing locally, use the keys in the SENSITIVE folder
+try:
+    with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
+        os.environ['OPENAI_API_KEY'] = f.read().strip()
+    with open('./SENSITIVE/google_api_key.txt', 'r') as f:
+        os.environ['GOOGLE_API_KEY'] = f.read().strip()
+# streamlit should serve the keys as environment variables already
+except:
+    pass
+
 instructions = "You are a glycobiology assistant for GlyGen that helps scientists navigate and utilize a bioinformatics knowledgebase."
 prompt_template = (
     "Context information from 'Essentials of Glycobiology' (4th edition) is below.\n"
@@ -68,41 +54,14 @@ prompt_template = (
 live_prompt_template = PromptTemplate(
     prompt_template, prompt_type=PromptType.CUSTOM
 )
-
-if llm == 'openai':
-    # load sensitive stuffs
-    # handled by streamlit secrets
-    """key = None
-    with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
-        key = f.read().strip()
-    # connect to OpenAI
-    os.environ['OPENAI_API_KEY'] = key"""
-    Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=instructions)
-    Settings.embed_model = OpenAIEmbedding(
-        model="text-embedding-3-small", 
-        embed_batch_size=100
-        )
-    cache = 'openai_vector_data'
-    name = 'openai_pipeline_cache'
-
-elif llm == 'ollama':
-    # NOTE: This option requires running the LLM server locally
-    # Install from https://github.com/ollama/ollama.git
-    #os.system('ollama serve llama3')
-    local_url = "http://localhost:11434" # defaults to this location
-    # 8B model, 4.7GB base, docs suggest ~8GB RAM, GPU ideally
-    Settings.llm = Ollama(model="llama3",
-                          base_url=local_url,
-                          request_timeout=180,
-                          system_prompt=instructions
-                          )
-    Settings.embed_model = OllamaEmbedding(
-        model_name="llama3",
-        base_url=local_url,
-        ollama_additional_kwargs={"mirostat": 0},
-        )
-    cache = 'llama-3_vector_data'
-    name = 'llama-3_pipeline_cache'
+    
+Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=instructions)
+Settings.embed_model = OpenAIEmbedding(
+    model="text-embedding-3-small", 
+    embed_batch_size=100
+    )
+cache = 'openai_vector_data'
+name = 'openai_pipeline_cache'
 
 # custom configs
 
@@ -134,8 +93,6 @@ def build_google_search_tool():
     print("Building Google Search Tool")
     # load google api key
     # handled by streamlit secrets
-    """with open('./SENSITIVE/google_api_key.txt', 'r') as f:
-        google_custom_search_key = f.read().strip()"""
     
     google_custom_search_key = os.environ['GOOGLE_API_KEY']
 
@@ -285,58 +242,56 @@ class StreamCapture:
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
 
-if mode == "chat":
-
-    # Initialize chat history, tool output history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "tool_output" not in st.session_state:
-        st.session_state.tool_output = []
+# Initialize chat history, tool output history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "tool_output" not in st.session_state:
+    st.session_state.tool_output = []
     
-    # initialize agent, cached so not rebuilt on each rerun
-    agent = build_agent()
+# initialize agent, cached so not rebuilt on each rerun
+agent = build_agent()
 
-    # Display chat messages, tool calls from history on app rerun
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    with st.sidebar:
-        st.sidebar.title("Agent Tool Calls")
+# Display chat messages, tool calls from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+with st.sidebar:
+    st.sidebar.title("Agent Tool Calls")
 
-    # React to user input
-    response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
+# React to user input
+response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
+
+
+if prompt := st.chat_input("How can I help you?"):
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # get response from assistant
+    # caputre tool calls from stdout
+    stream_capture = StreamCapture()
+
+    def get_response(prompt):
+        with stream_capture:
+            response = agent.chat(prompt)
+        return response
+        
+    async def get_response_async(prompt):
+        with stream_capture:
+            response = await agent.achat(prompt)
+        return response
     
-
-    if prompt := st.chat_input("How can I help you?"):
-        # Display user message in chat message container
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
-
-        # get response from assistant
-        # caputre tool calls from stdout
-        stream_capture = StreamCapture()
-
-        def get_response(prompt):
-            with stream_capture:
-                response = agent.chat(prompt)
-            return response
-        
-        async def get_response_async(prompt):
-            with stream_capture:
-                response = await agent.achat(prompt)
-            return response
-        
-        response = "waiting"
-        with st.spinner("Thinking..."):
-            response = asyncio.run(get_response_async(prompt))
-            stream_capture.flush()
-            tool_call = stream_capture.getvalue()
-            st.session_state.tool_output.append(tool_call)
-            with st.sidebar:
-                for tool_call in st.session_state.tool_output:
-                    st.text(tool_call)
+    response = "waiting"
+    with st.spinner("Thinking..."):
+        response = asyncio.run(get_response_async(prompt))
+        stream_capture.flush()
+        tool_call = stream_capture.getvalue()
+        st.session_state.tool_output.append(tool_call)
+        with st.sidebar:
+            for tool_call in st.session_state.tool_output:
+                st.text(tool_call)
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
