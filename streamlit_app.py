@@ -12,7 +12,6 @@ from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.prompts.base import PromptTemplate
 from llama_index.core.prompts.prompt_type import PromptType
-from pydantic.v1.main import BaseModel
 from llama_index.readers.papers import PubmedReader
 from llama_index.core.tools import FunctionTool, QueryEngineTool, ToolMetadata
 from pydantic import BaseModel, Field
