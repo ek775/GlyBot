@@ -3,7 +3,6 @@ A Domain-Specific LLM Assistant for Glycans and Glycobiology
 
 ### *WIP*
 
-
 **Overview**
 
 This project aims to develop an AI-assistant capable of querying a bioinformatics knowledgebase and providing assistance navigating and utilizing the informatics tools that are available. Documentation has historically been the primary method of informing users on how to utilize these resources, however, the effort to create, maintain, and utilize said documentation is often disproportionate to its utility. An AI-assistant provides a flexible platform for users with varying levels of experience and domain knowledge to interact with in order to become familiar with a new domain-specific informatics tool.
@@ -27,4 +26,3 @@ Markus J. Buehler. 2024. Accelerating scientific discovery with generative knowl
 Gao Silin. 2024. Efficient Tool Use with Chain-of-Abstraction Reasoning. arXiv:2401.17464. https://doi.org/10.48550/arXiv.2401.17464
 
 Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. 2002. BLEU: a Method for Automatic Evaluation of Machine Translation. Proceedings of the 40th Annual Meeting of the Association for Computational Linguistics (ACL), Philadelphia, July 2002, pp. 311-318.
-![image](https://github.com/user-attachments/assets/502fec4c-edc6-44c1-9daf-734900031ef4)
