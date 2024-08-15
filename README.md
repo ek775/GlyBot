@@ -1,8 +1,6 @@
 # GlyBot
 A Domain-Specific LLM Assistant for Glycans and Glycobiology
 
-### *WIP*
-
 #
 
 **Overview**
@@ -19,7 +17,29 @@ If you would like to contribute to this project, reach out to me via email at ek
 
 **Repository Guide**
 
+To interact with assistant locally, clone the repository and install the required python packages. This can be done using either anaconda or pip using the following commands:
 
+*Anaconda*
+
+> conda env create -f conda_dev_env.yml
+> conda activate glybot
+
+*pip*
+> pip install $(< requirements.txt)
+
+Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
+
+[OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
+
+Put these into a folder labelled SENSITIVE as text files,
+> openai_api_key.txt
+> google_api_key.txt
+
+or set them as environment variables and run a local streamlit server with:
+> streamlit run streamlit_app.py
+
+To run in your terminal or replicate my analysis, you can run the main script with:
+> python ./ [openai/ollama] [chat/eval]
 
 #
 
