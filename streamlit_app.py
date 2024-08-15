@@ -32,7 +32,7 @@ import asyncio
 # load keys
 # for testing locally, use the keys in the SENSITIVE folder
 try:
-    with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
+    with open('./SENSITIVE/openai_api_key.txt', 'r') as f:
         os.environ['OPENAI_API_KEY'] = f.read().strip()
     with open('./SENSITIVE/google_api_key.txt', 'r') as f:
         os.environ['GOOGLE_API_KEY'] = f.read().strip()
