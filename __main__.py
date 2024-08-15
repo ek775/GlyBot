@@ -67,7 +67,7 @@ live_prompt_template = PromptTemplate(
 if llm == 'openai':
     # load sensitive stuffs
     key = None
-    with open('./SENSITIVE/ek_llama_index_key.txt', 'r') as f:
+    with open('./SENSITIVE/openai_api_key.txt', 'r') as f:
         key = f.read().strip()
     # connect to OpenAI
     os.environ['OPENAI_API_KEY'] = key
