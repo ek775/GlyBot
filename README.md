@@ -24,7 +24,7 @@ To interact with assistant locally, clone the repository and install the require
 > conda env create -f conda_dev_env.yml
 > conda activate glybot
 
-*pip*
+*Pip*
 > pip install $(< requirements.txt)
 
 Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
@@ -33,6 +33,7 @@ Once you have done this, you will need to supply api keys for OpenAI and Google,
 
 Put these into a folder labelled SENSITIVE as text files,
 > openai_api_key.txt
+
 > google_api_key.txt
 
 or set them as environment variables and run a local streamlit server with:
