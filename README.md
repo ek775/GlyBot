@@ -3,13 +3,31 @@ A Domain-Specific LLM Assistant for Glycans and Glycobiology
 
 ### *WIP*
 
+#
+
 **Overview**
 
-This project aims to develop an AI-assistant capable of querying a bioinformatics knowledgebase and providing assistance navigating and utilizing the informatics tools that are available. Documentation has historically been the primary method of informing users on how to utilize these resources, however, the effort to create, maintain, and utilize said documentation is often disproportionate to its utility. An AI-assistant provides a flexible platform for users with varying levels of experience and domain knowledge to interact with in order to become familiar with a new domain-specific informatics tool.
+The Assistant is currently in a limited prototype stage on Streamlit Community Cloud here: [GlyBot](https://glybot.streamlit.app/)
+
+This project aims to develop an AI-assistant capable of querying a bioinformatics knowledgebase and providing assistance navigating and utilizing the informatics tools that are available. An AI-assistant provides a flexible platform for users with varying ranges of experience and domain knowledge to interact with in order to become familiar with a new domain-specific informatics tool. 
+
+The initial feasability step of this project involved building and evaluating a RAG pipeline to understand the principles of prompt engineering, RAG, and its effects on LLM responses. Data and analysis from this part of the project can be found in the results directory of this repository.
+
+Current efforts are aimed at enhancing the Assistant with various API tools for retrieving information from GlyGen, UniProt, and other relevant resources for glycoproteomics and achieving coherent integration of this information for assisting researchers. 
+
+If you would like to contribute to this project, reach out to me via email at ek990@georgetown.edu
+
+**Repository Guide**
+
+
+
+#
 
 **Abstract**
 
 Many bioinformatics tools are challenging for new users because they require deep expertise and familiarity with complex algorithms. However, recent advancements in Large Language Models (LLMs) have shown that these powerful text-processing tools can assist with various scientific research tasks (Buehler 2024), potentially making it easier for non-experts to use these tools. Although LLMs are built on a vast amount of information, they have limitations when it comes to knowledge not included in their initial training, especially in specialized fields (Soudani et al 2024). To address this, we explored the use of a method called Retrieval Augmented Generation (RAG), combined with semantic vector search, to enhance the glycobiology knowledge of an LLM-based AI assistant. This method augments a user's query at execution time with reference information retrieved from a database of pre-processed reliable source material and serves the LLM engineered queries with both questions and reference material to use in generating a response. We compared augmented LLM responses to non-augmented LLM responses on several different tasks using a curated set of questions with human-answers as ground-truth and reference information retrieved from the textbook "Essentials of Glycobiology, 4th edition" (Varki et al 2022) to augment the responses. Our study found that RAG significantly improves the factual content of the AI's responses in this specialized area by incorporating specific phrases and facts from a targeted knowledgebase.
+
+#
 
 **References**
 
