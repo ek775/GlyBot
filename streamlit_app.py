@@ -21,9 +21,12 @@ from llama_index.readers.web import SimpleWebPageReader
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 # other utilities
+import requests
 import os
 import sys
-from io import StringIO
+from io import StringIO, BytesIO
+from PIL import Image
+import base64
 import asyncio
 
 #######################################################################################
@@ -136,6 +139,43 @@ def build_google_search_tool():
     return GoogleSearchTool
 
 
+def build_glygen_image_search_tool():
+    pass
+    class GlyGenImageSearch(BaseModel):
+        """pydantic object describing how to get glycan images from GlyGen to the llm"""
+        query: str = Field(..., 
+                           pattern=r"[A-Z]{1}\d{5}[A-Z]{2}",
+                           description="Glytoucan accession ID to query for glycan images.")
+
+    def glygen_image_search(query: str):
+        """
+        Searches GlyGen for images of glycans based on their GlyToucan accession ID.
+        """
+        # check if the query is a GlyToucan ID
+        if len(query) != 8 or not query[0].isalpha() or not query[1:6].isnumeric() or not query[6:].isalpha():
+            return "The query should be a valid GlyToucan ID"
+
+        # query the api
+        url = f"https://api.glygen.org/glycan/image/{query}"
+        response = requests.post(url=url)
+
+        if response.status_code == 200:
+            return base64.b64encode(response.content).decode('utf-8')
+        elif response.status_code == 404:
+            return "No image found for the given GlyToucan ID"
+        else:
+            return "An error occurred while fetching the image"
+    
+    GlyGenImageSearchTool = FunctionTool.from_defaults(
+        fn = glygen_image_search,
+        name = "glygen_image_search_tool",
+        description = "Use this tool to search for glycan images from GlyGen.",
+        fn_schema = GlyGenImageSearch)
+    
+    print("GlyGen Image Search Tool Built")
+    return GlyGenImageSearchTool
+
+
 ### pubmed reader tool
 def build_pubmed_search_tool():
     print("Building PubMed Search Tool")
@@ -205,10 +245,15 @@ def build_textbook_tool():
 @st.cache_resource
 def build_agent(thread_id: str = None):
     print("Building Agent")
-    agent = OpenAIAssistantAgent.from_existing(
-        assistant_id="asst_9PMwjrFuQdIAlc82Mgutd92o",
+    agent = OpenAIAssistantAgent.from_new(
+        name="GlyBot-0.1",
+        instructions=instructions,
+        model="gpt-4o-mini-2024-07-18",
         thread_id=thread_id,
-        tools=[build_google_search_tool(), build_pubmed_search_tool(), build_textbook_tool()],
+        tools=[build_google_search_tool(), 
+               build_pubmed_search_tool(), 
+               build_textbook_tool(), 
+               build_glygen_image_search_tool()],
         verbose=True,
         run_retrieve_sleep_time=1.0
         )
@@ -283,7 +328,6 @@ if prompt := st.chat_input("How can I help you?"):
             response = await agent.achat(prompt)
         return response
     
-    response = "waiting"
     with st.spinner("Thinking..."):
         response = asyncio.run(get_response_async(prompt))
         stream_capture.flush()
