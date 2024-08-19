@@ -21,13 +21,19 @@ from llama_index.readers.web import SimpleWebPageReader
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 # other utilities
+import requests
 import os
 import sys
-from io import StringIO
-import asyncio
+from io import StringIO, BytesIO
+from PIL import Image
+import base64
+import logging
+from typing import Optional
 
 #######################################################################################
-# apply settings
+# apply settings, configure logging
+#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 # load keys
 # for testing locally, use the keys in the SENSITIVE folder
@@ -136,6 +142,43 @@ def build_google_search_tool():
     return GoogleSearchTool
 
 
+def build_glygen_image_search_tool():
+    pass
+    class GlyGenImageSearch(BaseModel):
+        """pydantic object describing how to get glycan images from GlyGen to the llm"""
+        query: str = Field(..., 
+                           pattern=r"[A-Z]{1}\d{5}[A-Z]{2}",
+                           description="Glytoucan accession ID to query for glycan images.")
+
+    def glygen_image_search(query: str):
+        """
+        Searches GlyGen for images of glycans based on their GlyTouCan accession ID.
+        """
+        # check if the query is a GlyToucan ID
+        if len(query) != 8 or not query[0].isalpha() or not query[1:6].isnumeric() or not query[6:].isalpha():
+            return "The query should be a valid GlyTouCan ID"
+
+        # query the api
+        url = f"https://api.glygen.org/glycan/image/{query}"
+        response = requests.post(url=url)
+
+        if response.status_code == 200:
+            return base64.b64encode(response.content).decode('utf-8')
+        elif response.status_code == 404:
+            return "No image found for the given GlyToucan ID"
+        else:
+            return "An error occurred while fetching the image"
+    
+    GlyGenImageSearchTool = FunctionTool.from_defaults(
+        fn = glygen_image_search,
+        name = "glygen_image_search_tool",
+        description = "Use this tool to search for glycan images from GlyGen.",
+        fn_schema = GlyGenImageSearch)
+    
+    print("GlyGen Image Search Tool Built")
+    return GlyGenImageSearchTool
+
+
 ### pubmed reader tool
 def build_pubmed_search_tool():
     print("Building PubMed Search Tool")
@@ -203,19 +246,58 @@ def build_textbook_tool():
 
 ### agent ###
 @st.cache_resource
-def build_agent(thread_id: str = None):
-    print("Building Agent")
-    agent = OpenAIAssistantAgent.from_existing(
-        assistant_id="asst_9PMwjrFuQdIAlc82Mgutd92o",
-        thread_id=thread_id,
-        tools=[build_google_search_tool(), build_pubmed_search_tool(), build_textbook_tool()],
-        verbose=True,
-        run_retrieve_sleep_time=1.0
-        )
-    print("Agent Built")
-    return agent
+def load_tools():
+    """
+    Cache the tools separately so they are not rebuilt when building an agent after failed loading.
+    """
+    print("Loading Tools")
+    tools = [
+        build_google_search_tool(),
+        build_glygen_image_search_tool(),
+        build_pubmed_search_tool(),
+        build_textbook_tool()
+    ]
+    return tools
 
-# custom stream handler to capture tool output from stdout and stream it back to st.write_stream
+@st.cache_resource
+def build_agent(_tools: list,
+                openai_assistant_name: Optional[str]="GlyBot", 
+                thread_id: Optional[str] = None, 
+                assistant_id: Optional[str] = None):
+    """
+    Connects to the OpenAI API to build an assistant agent with the given name and instructions.
+
+    If an assistant with the given name already exists, it will be loaded.
+
+    If we are making a new assistant, we give it a new name and allow a new one to be created, 
+    caching the id for future use.
+
+    Returns: agent, assistant_id, stored_name
+    """
+    print("Connecting to OpenAI API")
+    try:
+        agent = OpenAIAssistantAgent.from_existing(
+            assistant_id=assistant_id,
+            tools=_tools,
+            verbose=True,
+            run_retrieve_sleep_time=1.0
+        )
+        print("Agent Loaded")
+        return agent
+    except:
+        agent = OpenAIAssistantAgent.from_new(
+            name=openai_assistant_name,
+            instructions=instructions,
+            model="gpt-4o-mini-2024-07-18",
+            thread_id=thread_id,
+            tools=_tools,
+            verbose=True,
+            run_retrieve_sleep_time=1.0
+            )
+        print("Agent Built")
+        return agent
+
+# custom stream handler to capture tool output from stdout
 class StreamCapture:
     def __init__(self):
         self.stdout = sys.stdout
@@ -249,7 +331,16 @@ if "tool_output" not in st.session_state:
     st.session_state.tool_output = []
     
 # initialize agent, cached so not rebuilt on each rerun
-agent = build_agent()
+# in case of errors, do not show user tracebacks
+try:
+    # be sure to update id once testing a new agent
+    agent_name = "GlyBot-0.1"
+    id = 'asst_KhgwSq9xrctO33W19aBB6Eaz'
+    tools = load_tools()
+    agent = build_agent(_tools=tools, openai_assistant_name=agent_name, assistant_id=id)
+except Exception as e:
+    print(e)
+    st.write("An error occurred while connecting to the assistant. Please try again later.")
 
 # Display chat messages, tool calls from history on app rerun
 for message in st.session_state.messages:
@@ -261,7 +352,6 @@ with st.sidebar:
 # React to user input
 response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
 
-
 if prompt := st.chat_input("How can I help you?"):
     # Display user message in chat message container
     with st.chat_message("user"):
@@ -270,24 +360,24 @@ if prompt := st.chat_input("How can I help you?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     # get response from assistant
-    # caputre tool calls from stdout
+    # capture tool calls from stdout
     stream_capture = StreamCapture()
 
     def get_response(prompt):
         with stream_capture:
             response = agent.chat(prompt)
         return response
-        
-    async def get_response_async(prompt):
-        with stream_capture:
-            response = await agent.achat(prompt)
-        return response
     
-    response = "waiting"
     with st.spinner("Thinking..."):
-        response = asyncio.run(get_response_async(prompt))
-        stream_capture.flush()
-        tool_call = stream_capture.getvalue()
+        try:
+            response = get_response(prompt)
+            stream_capture.flush()
+            tool_call = stream_capture.getvalue()
+        except Exception as e:
+            print(e)
+            response = "An error occurred while processing your request."
+            stream_capture.flush()
+            tool_call = stream_capture.getvalue()
         st.session_state.tool_output.append(tool_call)
         with st.sidebar:
             for tool_call in st.session_state.tool_output:
