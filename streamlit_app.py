@@ -1,6 +1,7 @@
 ### Main Application Script for Text Generation Backend ###
 import streamlit as st
 st.title("GlyBot: Prototype Glycobiology Assistant")
+st.spinner("Loading...")
 
 # import libraries
 from llama_index.llms.openai import OpenAI
@@ -35,6 +36,8 @@ from typing import Optional
 
 #######################################################################################
 # apply settings, configure logging
+#######################################################################################
+
 #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 #logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
@@ -86,19 +89,18 @@ class Parameters:
             value = getattr(self, attr)
             yield attr, value
 
-def query_engine_config(index_params: Parameters, retriever_params: Parameters, response_params: Parameters):
+def query_engine_config(index_params: Parameters, retriever_params: Parameters, response_params: Parameters) -> RetrieverQueryEngine:
     db = QdrantSetup(**dict(index_params.params))
     retriever = VectorIndexRetriever(index=db.index, **dict(retriever_params.params))
     response_synthesizer = get_response_synthesizer(**dict(response_params.params))
     return RetrieverQueryEngine(retriever=retriever, response_synthesizer=response_synthesizer)
 
 #################################################################################
-# configure agent
-
-# build tools
+### Tools for the Assistant ###
+#################################################################################
 
 ### google search tool @glygen
-def build_google_search_tool():
+def build_google_search_tool() -> FunctionTool:
     print("Building Google Search Tool")
     # load google api key
     # handled by streamlit secrets
@@ -144,8 +146,8 @@ def build_google_search_tool():
     print("Google Search Tool Built")
     return GoogleSearchTool
 
-
-def build_glygen_image_search_tool():
+### glygen image search tool
+def build_glygen_image_search_tool() -> FunctionTool:
     class GlyGenImageSearch(BaseModel):
         """pydantic object describing how to get glycan images from GlyGen to the llm"""
         query: str = Field(..., 
@@ -184,7 +186,7 @@ def build_glygen_image_search_tool():
 
 
 ### pubmed reader tool
-def build_pubmed_search_tool():
+def build_pubmed_search_tool() -> FunctionTool:
     print("Building PubMed Search Tool")
     class PubMedQuery(BaseModel):
         """pydantic object describing how to search pubmed to the llm"""
@@ -194,7 +196,7 @@ def build_pubmed_search_tool():
         """Retrieves abstracts of relevant papers from PubMed"""
         reader = PubmedReader()
         papers = reader.load_data(search_query=query, max_results=10)
-        index = SummaryIndex.from_documents(papers)
+        index = VectorStoreIndex.from_documents(papers)
         retriever = index.as_retriever()
         results = retriever.retrieve(query)
         return [r.get_content() for r in results]
@@ -210,7 +212,7 @@ def build_pubmed_search_tool():
     
 
 ### query engine tool for "Essentials of Glycobiology" textbook
-def build_textbook_tool():
+def build_textbook_tool() -> QueryEngineTool:
     print("Building Textbook Query Engine Tool")
 
     # start server
@@ -252,10 +254,12 @@ def build_textbook_tool():
     print("Textbook Query Engine Tool Built")
     return TextbookQueryEngineTool
     
+#################################################################################
+### GlyBot Config and Caching ###
+#################################################################################
 
-### agent ###
 @st.cache_resource
-def load_tools():
+def load_tools() -> list:
     """
     Cache the tools separately so they are not rebuilt when building an agent after failed loading.
     """
@@ -272,7 +276,7 @@ def load_tools():
 def build_agent(_tools: list,
                 openai_assistant_name: Optional[str]="GlyBot", 
                 thread_id: Optional[str] = None, 
-                assistant_id: Optional[str] = None):
+                assistant_id: Optional[str] = None) -> OpenAIAssistantAgent:
     """
     Connects to the OpenAI API to build an assistant agent with the given name and instructions.
 
@@ -281,7 +285,7 @@ def build_agent(_tools: list,
     If we are making a new assistant, we give it a new name and allow a new one to be created, 
     caching the id for future use.
 
-    Returns: agent, assistant_id, stored_name
+    Returns: agent
     """
     print("Connecting to OpenAI API")
     try:
@@ -310,6 +314,7 @@ def build_agent(_tools: list,
 
 #################################################################################
 # Additional functions and utilities for app UI
+#################################################################################
 
 # custom stream handler to capture tool output from stdout
 class StreamCapture:
@@ -336,18 +341,28 @@ class StreamCapture:
         return self.stream.getvalue()
 
 # helper function for recording feedback
-def record_feedback(feedback: str):
+def record_feedback(feedback: Optional[str] = None) -> None:
     """ 
     Writes feedback to text local text file line by line. 
     Accessible from "codespace" in deployed streamlit community cloud context.
     """
-    with open("feedback.txt", "a") as f:
-        f.write(feedback)
-        f.write("\n")
-    st.write("Thank you for your feedback!")
+    if feedback != None:
+        with open("feedback.txt", "a") as f:
+            f.write(feedback)
+            f.write("\n")
+        st.write("Thank you for your feedback!")
+    else:
+        pass
 
 # helper function for extracting urls from tool output
-def extract_urls(text:str):
+def redirect_entrez_to_pubmed(pmcid:str) -> str:
+    """
+    Function for redirecting entrez links to pubmed links for the "learn more" button in the chat interface.
+    """
+    pubmed_url = f"https://pubmed.ncbi.nlm.nih.gov/{pmcid}"
+    return pubmed_url
+
+def extract_urls(text:str) -> list:
     """
     Function for extracting urls from tool output. 
 
@@ -365,26 +380,34 @@ def extract_urls(text:str):
             url = url[:-1]
         if url.endswith('"'):
             url = url[:-1]
-        if url.endswith(('/', '.html', '.com', 'pmc')):
+        if url.endswith(('/', '.html', '.com', '.org', '.gov')):
             valid_urls.append(url)
+        if url.endswith('pmc'):
+            pmcid = re.search(r'id=(\d+)', url).group(1)
+            valid_urls.append(redirect_entrez_to_pubmed(pmcid=pmcid))
 
     return valid_urls
 
 #################################################################################
-# **Main Loop** --> port chatting to streamlit app
+# Streamlit Configuration and Main Application Script
+#################################################################################
 
-# Initialize chat history, tool output history
+# Initialize chat history, tool output history, images, urls
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "tool_output" not in st.session_state:
     st.session_state.tool_output = []
+if "learn_more_urls" not in st.session_state:
+    st.session_state.learn_more_urls = ['https://www.glygen.org']
+if "glycan_images" not in st.session_state:
+    st.session_state.glycan_images = []
  
 # initialize agent, cached so not rebuilt on each rerun
 # in case of errors, do not show user tracebacks
 try:
     # be sure to update id once testing a new agent
-    agent_name = "GlyBot-0.1"
-    id = 'asst_KhgwSq9xrctO33W19aBB6Eaz'
+    agent_name = "GlyBot-0.2"
+    id = 'asst_Kl07X7RbVCbCYtOdqiLqFzQ8'
     tools = load_tools()
     agent = build_agent(
         _tools=tools, 
@@ -406,15 +429,25 @@ for msg in st.session_state.messages:
     if msg["content"] == starter_msg:
         st.session_state.messages.remove(msg)
 
-# Display chat messages, tool calls from history on app rerun
+# Display chat messages, etc. from history on app rerun
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+
+# Display additional info and utilities in side bar
 with st.sidebar:
-    with st.form(key="feedback", clear_on_submit=True):
-        feedback = st.text_area("Feedback", value="Please provide feedback on your experience with GlyBot.")
-        st.form_submit_button("Submit", on_click=record_feedback(feedback))
-    st.sidebar.title("Agent Tool Calls")
+    st.page_link(page="https://www.glygen.org", label="GlyGen Homepage", icon="🌎")        
+    # feedback form
+    with st.popover("Provide Feedback"):
+        with st.form(key="feedback", clear_on_submit=True):
+            feedback = st.text_area(
+                label="Feedback", 
+                value=None, 
+                placeholder="Please provide feedback on your experience with GlyBot."
+                )
+            st.form_submit_button("Submit", on_click=record_feedback(feedback))
+    
+    
 
 # React to user input
 response = starter_msg
@@ -451,19 +484,30 @@ if prompt := st.chat_input("How can I help you?"):
             tool_call = stream_capture.getvalue()
 
             # save traceback to log file so we can debug
-            log_number = str([np.random.randint(0,10) for n in range(12)])
+            log_number = ''.join([str(np.random.randint(0,10)) for n in range(12)])
             with open(f"./logging/{log_number}.txt", "w") as f:
                 f.write(prompt)
                 f.write("\n")
                 f.write(tool_call)
                 f.write("\n")
-                for line in e:
-                    f.write(line)
-        # save tool calls and display their output in sidebar
+                f.write(e)
+        # save tool calls to history
         st.session_state.tool_output.append(tool_call)
+        st.session_state.learn_more_urls.extend(extract_urls(tool_call))
+
+        # display tool call popup and links extracted from the tools in the sidebar
         with st.sidebar:
-            for tool_call in st.session_state.tool_output:
-                st.caption(tool_call)
+            # links to glygen, etc. from tool output
+            st.sidebar.title("Learn More")
+            st.session_state.learn_more_urls = list(set(st.session_state.learn_more_urls))
+            for url in st.session_state.learn_more_urls:
+                st.page_link(page=url, label=url, icon="🔗")
+            st.divider()
+
+            # display actual tool output in popup menu in sidebar
+            with st.popover("Tool Calls", help="View how GlyBot uses its information tools to give its answer."):
+                for i in st.session_state.tool_output:
+                    st.text(i)
 
 # Display assistant response in chat message container
 with st.chat_message("assistant"):
