@@ -330,7 +330,13 @@ class StreamCapture:
 
     def getvalue(self):
         return self.stream.getvalue()
-    
+
+def record_feedback(feedback: str):
+    with open("feedback.txt", "a") as f:
+        f.write(feedback)
+        f.write("\n")
+    st.write("Thank you for your feedback!")
+
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
 
@@ -361,15 +367,24 @@ except Exception as e:
         for line in e:
             f.write(line)
 
+# check for redundant starter messages in history
+starter_msg = "Hello! I'm GlyBot, your glycobiology assistant. How can I help you today?"
+for msg in st.session_state.messages:
+    if msg["content"] == starter_msg:
+        st.session_state.messages.remove(msg)
+
 # Display chat messages, tool calls from history on app rerun
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 with st.sidebar:
+    with st.form(key="feedback", clear_on_submit=True):
+        feedback = st.text_area("Feedback", value="Please provide feedback on your experience with GlyBot.")
+        st.form_submit_button("Submit", on_click=record_feedback(feedback))
     st.sidebar.title("Agent Tool Calls")
 
 # React to user input
-response = "Hello, I am GlyBot. I am here to help you with your glycobiology questions."
+response = starter_msg
 
 if prompt := st.chat_input("How can I help you?"):
     # Display user message in chat message container
@@ -391,6 +406,7 @@ if prompt := st.chat_input("How can I help you?"):
         return response
     
     with st.spinner("Thinking..."):
+        # hide tracebacks from users
         try:
             response = get_response(prompt)
             stream_capture.flush()
@@ -400,6 +416,7 @@ if prompt := st.chat_input("How can I help you?"):
             response = "An error occurred while processing your request."
             stream_capture.flush()
             tool_call = stream_capture.getvalue()
+
             # save traceback to log file so we can debug
             log_number = str([np.random.randint(0,10) for n in range(12)])
             with open(f"./logging/{log_number}.txt", "w") as f:
@@ -413,10 +430,10 @@ if prompt := st.chat_input("How can I help you?"):
         st.session_state.tool_output.append(tool_call)
         with st.sidebar:
             for tool_call in st.session_state.tool_output:
-                st.text(tool_call)
+                st.write(tool_call)
 
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
-        st.markdown(response)
-    # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": response})
+# Display assistant response in chat message container
+with st.chat_message("assistant"):
+    st.markdown(response)
+# Add assistant response to chat history
+st.session_state.messages.append({"role": "assistant", "content": response})
