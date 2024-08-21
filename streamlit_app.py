@@ -18,16 +18,18 @@ import urllib.parse
 from llama_index.core import SummaryIndex
 from llama_index.readers.web import SimpleWebPageReader
 #from qdrant_client import QdrantClient
+import numpy as np
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 # other utilities
 import requests
 import os
 import sys
-from io import StringIO, BytesIO
-from PIL import Image
+from io import StringIO
 import base64
-import logging
+#import logging
+from PIL import Image
+from io import BytesIO
 from typing import Optional
 
 #######################################################################################
@@ -143,7 +145,6 @@ def build_google_search_tool():
 
 
 def build_glygen_image_search_tool():
-    pass
     class GlyGenImageSearch(BaseModel):
         """pydantic object describing how to get glycan images from GlyGen to the llm"""
         query: str = Field(..., 
@@ -160,12 +161,14 @@ def build_glygen_image_search_tool():
 
         # query the api
         url = f"https://api.glygen.org/glycan/image/{query}"
-        response = requests.post(url=url)
+        response = requests.post(url=url, verify=False)
 
         if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+            img.save("glycan_image_temp_file.png")
             return base64.b64encode(response.content).decode('utf-8')
         elif response.status_code == 404:
-            return "No image found for the given GlyToucan ID"
+            return "No image found for the given GlyTouCan ID"
         else:
             return "An error occurred while fetching the image"
     
@@ -208,6 +211,11 @@ def build_pubmed_search_tool():
 ### query engine tool for "Essentials of Glycobiology" textbook
 def build_textbook_tool():
     print("Building Textbook Query Engine Tool")
+
+    # start server
+    #print("Starting Qdrant Server")
+    #os.system("docker run -d --name qdrant -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest")
+
     toolmeta = ToolMetadata(
         name="essentials_of_glycobiology",
         description="Use this tool to provide entry-level information on glycobiology from the textbook 'Essentials of Glycobiology'.",
@@ -278,6 +286,7 @@ def build_agent(_tools: list,
     try:
         agent = OpenAIAssistantAgent.from_existing(
             assistant_id=assistant_id,
+            thread_id=thread_id,
             tools=_tools,
             verbose=True,
             run_retrieve_sleep_time=1.0
@@ -291,6 +300,7 @@ def build_agent(_tools: list,
             model="gpt-4o-mini-2024-07-18",
             thread_id=thread_id,
             tools=_tools,
+            openai_tools=[{"type": "code_interpreter"}, {"type": "file_search"}],
             verbose=True,
             run_retrieve_sleep_time=1.0
             )
@@ -320,7 +330,7 @@ class StreamCapture:
 
     def getvalue(self):
         return self.stream.getvalue()
-
+    
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
 
@@ -329,7 +339,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "tool_output" not in st.session_state:
     st.session_state.tool_output = []
-    
+ 
 # initialize agent, cached so not rebuilt on each rerun
 # in case of errors, do not show user tracebacks
 try:
@@ -337,10 +347,19 @@ try:
     agent_name = "GlyBot-0.1"
     id = 'asst_KhgwSq9xrctO33W19aBB6Eaz'
     tools = load_tools()
-    agent = build_agent(_tools=tools, openai_assistant_name=agent_name, assistant_id=id)
+    agent = build_agent(
+        _tools=tools, 
+        openai_assistant_name=agent_name, 
+        assistant_id=id
+        )
 except Exception as e:
     print(e)
     st.write("An error occurred while connecting to the assistant. Please try again later.")
+    # save traceback to log file so we can debug
+    log_number = str([np.random.randint(0,10) for n in range(12)])
+    with open(f"./logging/{log_number}.txt", "w") as f:
+        for line in e:
+            f.write(line)
 
 # Display chat messages, tool calls from history on app rerun
 for message in st.session_state.messages:
@@ -366,6 +385,9 @@ if prompt := st.chat_input("How can I help you?"):
     def get_response(prompt):
         with stream_capture:
             response = agent.chat(prompt)
+            if os.path.exists("glycan_image_temp_file.png"):
+                agent.upload_files(["glycan_image_temp_file.png"])
+                os.remove("glycan_image_temp_file.png")
         return response
     
     with st.spinner("Thinking..."):
@@ -378,6 +400,16 @@ if prompt := st.chat_input("How can I help you?"):
             response = "An error occurred while processing your request."
             stream_capture.flush()
             tool_call = stream_capture.getvalue()
+            # save traceback to log file so we can debug
+            log_number = str([np.random.randint(0,10) for n in range(12)])
+            with open(f"./logging/{log_number}.txt", "w") as f:
+                f.write(prompt)
+                f.write("\n")
+                f.write(tool_call)
+                f.write("\n")
+                for line in e:
+                    f.write(line)
+
         st.session_state.tool_output.append(tool_call)
         with st.sidebar:
             for tool_call in st.session_state.tool_output:
