@@ -1,7 +1,5 @@
 ### Main Application Script for Text Generation Backend ###
 import streamlit as st
-st.title("GlyBot: Prototype Glycobiology Assistant")
-st.spinner("Loading...")
 
 # import libraries
 from llama_index.llms.openai import OpenAI
@@ -436,7 +434,14 @@ for message in st.session_state.messages:
 
 # Display additional info and utilities in side bar
 with st.sidebar:
-    st.page_link(page="https://www.glygen.org", label="GlyGen Homepage", icon="🌎")        
+    st.title(f"{agent_name} \n *A Protoype Glycobiology Assistant*")
+    glygen_logo = Image.open("./glygen_logo.png")
+    buf = BytesIO()
+    glygen_logo.save(buf, format="PNG")
+    byt_img = buf.getvalue()
+    st.image(byt_img, use_column_width=True)
+    st.page_link(page="https://www.glygen.org", label="GlyGen Homepage", icon="🌎")     
+    st.divider()   
     # feedback form
     with st.popover("Provide Feedback"):
         with st.form(key="feedback", clear_on_submit=True):
