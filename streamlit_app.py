@@ -22,6 +22,7 @@ import numpy as np
 # helper scripts
 from pipelines.vector_store import QdrantSetup
 # other utilities
+import re
 import requests
 import os
 import sys
@@ -193,7 +194,7 @@ def build_pubmed_search_tool():
         """Retrieves abstracts of relevant papers from PubMed"""
         reader = PubmedReader()
         papers = reader.load_data(search_query=query, max_results=10)
-        index = VectorStoreIndex.from_documents(papers)
+        index = SummaryIndex.from_documents(papers)
         retriever = index.as_retriever()
         results = retriever.retrieve(query)
         return [r.get_content() for r in results]
@@ -307,6 +308,9 @@ def build_agent(_tools: list,
         print("Agent Built")
         return agent
 
+#################################################################################
+# Additional functions and utilities for app UI
+
 # custom stream handler to capture tool output from stdout
 class StreamCapture:
     def __init__(self):
@@ -331,11 +335,40 @@ class StreamCapture:
     def getvalue(self):
         return self.stream.getvalue()
 
+# helper function for recording feedback
 def record_feedback(feedback: str):
+    """ 
+    Writes feedback to text local text file line by line. 
+    Accessible from "codespace" in deployed streamlit community cloud context.
+    """
     with open("feedback.txt", "a") as f:
         f.write(feedback)
         f.write("\n")
     st.write("Thank you for your feedback!")
+
+# helper function for extracting urls from tool output
+def extract_urls(text:str):
+    """
+    Function for extracting urls from tool output. 
+
+    Used for the "learn more" button in the chat interface.
+    """
+    urls = re.findall(r'(https?://\S+)', text)
+    unique_urls = list(set(urls))
+    valid_urls = []
+    for url in unique_urls:
+        if str("\\\\") in url:
+            continue
+        if str("googleapis") in url:
+            continue
+        if url.endswith(','):
+            url = url[:-1]
+        if url.endswith('"'):
+            url = url[:-1]
+        if url.endswith(('/', '.html', '.com', 'pmc')):
+            valid_urls.append(url)
+
+    return valid_urls
 
 #################################################################################
 # **Main Loop** --> port chatting to streamlit app
@@ -426,11 +459,11 @@ if prompt := st.chat_input("How can I help you?"):
                 f.write("\n")
                 for line in e:
                     f.write(line)
-
+        # save tool calls and display their output in sidebar
         st.session_state.tool_output.append(tool_call)
         with st.sidebar:
             for tool_call in st.session_state.tool_output:
-                st.write(tool_call)
+                st.caption(tool_call)
 
 # Display assistant response in chat message container
 with st.chat_message("assistant"):
