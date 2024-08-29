@@ -15,7 +15,46 @@ Current efforts are aimed at enhancing the Assistant with various API tools for 
 
 If you would like to contribute to this project, reach out to me via email at ek990@georgetown.edu
 
-**Repository Guide**
+**Run with Docker**
+
+To use the prototype assistant yourself, the easist method is via docker container. Due to the use of external APIs, these instructions use docker files in the repo to build the image using your API keys and assume that you have installed and/or are familiar with git and docker command line tools. 
+
+Steps:
+1. Clone the repository
+
+```
+# locally
+git clone https://github.com/ek775/GlyBot.git
+# with github CLI
+gh repo clone ek775/GlyBot
+```
+
+2. Add your API keys
+
+Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
+
+[OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
+
+Put these into a folder labelled SENSITIVE as text files,
+> GlyBot/SENSITIVE/openai_api_key.txt
+
+> GlyBot/SENSITIVE/google_api_key.txt
+
+3. Build the Docker image
+
+```
+docker build . -t glybot:myassistant
+```
+
+4. Run the container and open in browser
+
+```
+docker container run -d -p 8501:8501 glybot:myassistant
+```
+
+Access the application by going to > http://localhost:8501/
+
+**Python Guide**
 
 To interact with assistant locally, clone the repository and install the required python packages. This can be done using either anaconda or pip using the following commands:
 
@@ -41,12 +80,6 @@ or set them as environment variables and run a local streamlit server with:
 
 To run in your terminal or replicate my analysis, you can run the main script with:
 > python ./ [openai/ollama] [chat/eval]
-
-#
-
-**Abstract**
-
-Many bioinformatics tools are challenging for new users because they require deep expertise and familiarity with complex algorithms. However, recent advancements in Large Language Models (LLMs) have shown that these powerful text-processing tools can assist with various scientific research tasks (Buehler 2024), potentially making it easier for non-experts to use these tools. Although LLMs are built on a vast amount of information, they have limitations when it comes to knowledge not included in their initial training, especially in specialized fields (Soudani et al 2024). To address this, we explored the use of a method called Retrieval Augmented Generation (RAG), combined with semantic vector search, to enhance the glycobiology knowledge of an LLM-based AI assistant. This method augments a user's query at execution time with reference information retrieved from a database of pre-processed reliable source material and serves the LLM engineered queries with both questions and reference material to use in generating a response. We compared augmented LLM responses to non-augmented LLM responses on several different tasks using a curated set of questions with human-answers as ground-truth and reference information retrieved from the textbook "Essentials of Glycobiology, 4th edition" (Varki et al 2022) to augment the responses. Our study found that RAG significantly improves the factual content of the AI's responses in this specialized area by incorporating specific phrases and facts from a targeted knowledgebase.
 
 #
 
