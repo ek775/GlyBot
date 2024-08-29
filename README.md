@@ -15,6 +15,8 @@ Current efforts are aimed at enhancing the Assistant with various API tools for 
 
 If you would like to contribute to this project, reach out to me via email at ek990@georgetown.edu
 
+#
+
 **Run with Docker**
 
 To use the prototype assistant yourself, the easist method is via docker container. Due to the use of external APIs, these instructions use docker files in the repo to build the image using your API keys and assume that you have installed and/or are familiar with git and docker command line tools. 
@@ -52,34 +54,43 @@ docker build . -t glybot:myassistant
 docker container run -d -p 8501:8501 glybot:myassistant
 ```
 
-Access the application by going to > http://localhost:8501/
+Access the application by going to http://localhost:8501/
+
+#
 
 **Python Guide**
 
 To interact with assistant locally, clone the repository and install the required python packages. This can be done using either anaconda or pip using the following commands:
 
 *Anaconda*
-
-> conda env create -f conda_dev_env.yml
-> conda activate glybot
+```
+conda env create -f conda_dev_env.yml
+```
+```
+conda activate glybot
+```
 
 *Pip*
-> pip install $(< requirements.txt)
-
+```
+pip install $(< requirements.txt)
+```
 Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
 
 [OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
 
 Put these into a folder labelled SENSITIVE as text files,
-> openai_api_key.txt
+> GlyBot/SENSITIVE/openai_api_key.txt
 
-> google_api_key.txt
+> GlyBot/SENSITIVE/google_api_key.txt
 
 or set them as environment variables and run a local streamlit server with:
-> streamlit run streamlit_app.py
-
+```
+streamlit run streamlit_app.py
+```
 To run in your terminal or replicate my analysis, you can run the main script with:
-> python ./ [openai/ollama] [chat/eval]
+```
+python ./ [openai/ollama] [chat/eval]
+```
 
 #
 
