@@ -5,13 +5,9 @@ A Domain-Specific LLM Assistant for Glycans and Glycobiology
 
 **Overview**
 
-The Assistant is currently in a limited prototype stage on Streamlit Community Cloud here: [GlyBot](https://glybot.streamlit.app/)
-
 This project aims to develop an AI-assistant capable of querying a bioinformatics knowledgebase and providing assistance navigating and utilizing the informatics tools that are available. An AI-assistant provides a flexible platform for users with varying ranges of experience and domain knowledge to interact with in order to become familiar with a new domain-specific informatics tool. 
 
-The initial feasability step of this project involved building and evaluating a RAG pipeline to understand the principles of prompt engineering, RAG, and its effects on LLM responses. Data and analysis from this part of the project can be found in the results directory of this repository.
-
-Current efforts are aimed at enhancing the Assistant with various API tools for retrieving information from GlyGen, UniProt, and other relevant resources for glycoproteomics and achieving coherent integration of this information for assisting researchers. 
+*The assistant is currently in a prototype stage* and current efforts are aimed at enhancing the assistant with various API tools for retrieving information from GlyGen, UniProt, and other relevant resources for glycoproteomics and achieving coherent integration of this information for assisting researchers. 
 
 If you would like to contribute to this project, reach out to me via email at ek990@georgetown.edu
 
@@ -56,41 +52,9 @@ docker container run -d -p 8501:8501 glybot:myassistant
 
 Access the application by going to http://localhost:8501/
 
-#
+# Initial Feasability Analysis
 
-**Python Guide**
-
-To interact with assistant locally, clone the repository and install the required python packages. This can be done using either anaconda or pip using the following commands:
-
-*Anaconda*
-```
-conda env create -f conda_dev_env.yml
-```
-```
-conda activate glybot
-```
-
-*Pip*
-```
-pip install $(< requirements.txt)
-```
-Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
-
-[OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
-
-Put these into a folder labelled SENSITIVE as text files,
-> GlyBot/SENSITIVE/openai_api_key.txt
-
-> GlyBot/SENSITIVE/google_api_key.txt
-
-or set them as environment variables and run a local streamlit server with:
-```
-streamlit run streamlit_app.py
-```
-To run in your terminal or replicate my analysis, you can run the main script with:
-```
-python ./ [openai/ollama] [chat/eval]
-```
+Early work to evaluate the efficacy of RAG and its effects on LLM output in this domain can be found in its own branch of this repository. If you are interested in that work, it can be found in the RAG_feasability_eval branch.
 
 #
 
