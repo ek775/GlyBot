@@ -78,13 +78,11 @@ class Parameters:
             value = getattr(self, attr)
             yield attr, value
 
-@st.cache_resource
 def glyco_essentials_retriever(_index_params: Parameters, _retriever_params: Parameters) -> VectorIndexRetriever:
     db = QdrantSetup(**dict(_index_params.params))
     retriever = VectorIndexRetriever(index=db.index, **dict(_retriever_params.params))
     return retriever
 
-@st.cache_resource
 def query_engine_config(_retriever: VectorIndexRetriever, _response_params: Parameters) -> RetrieverQueryEngine:
     response_synthesizer = get_response_synthesizer(**dict(_response_params.params))
     return RetrieverQueryEngine(retriever=_retriever, response_synthesizer=response_synthesizer)
