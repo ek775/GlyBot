@@ -20,16 +20,9 @@ To experiment with the prototype assistant yourself, this repository is configur
 Steps:
 1. Clone the repository
 
-```
-# locally
-git clone https://github.com/ek775/GlyBot.git
-# with github CLI
-gh repo clone ek775/GlyBot
-```
-
 2. Add your API keys
 
-Once you have done this, you will need to supply api keys for OpenAI and Google, which, you can get here:
+You will need to supply api keys for OpenAI and Google, which, you can get here:
 
 [OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
 
@@ -38,19 +31,16 @@ Put these into a folder labelled SENSITIVE as text files,
 
 > GlyBot/SENSITIVE/google_api_key.txt
 
-3. Build the Docker image
-
-```
-docker build . -t glybot:myassistant
-```
-
-4. Run the config file with docker compose:
+3. Run the config file with docker compose:
 
 ```
 docker compose up
 ```
+*This step will build an image for the application using your api keys as environment variables, install the qdrant database and embed the data, and leave it running in your terminal.*
 
 Access the application by going to http://localhost:8501/
+
+When you are done, use ```docker compose down``` to terminate the containers.
 
 # Initial Feasability Analysis
 
