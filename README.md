@@ -44,10 +44,10 @@ Put these into a folder labelled SENSITIVE as text files,
 docker build . -t glybot:myassistant
 ```
 
-4. Run the container and open in browser
+4. Run the config file with docker compose:
 
 ```
-docker container run -d -p 8501:8501 glybot:myassistant
+docker compose up
 ```
 
 Access the application by going to http://localhost:8501/
