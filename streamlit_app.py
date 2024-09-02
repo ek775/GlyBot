@@ -92,9 +92,10 @@ def query_engine_config(_retriever: VectorIndexRetriever, _response_params: Para
 #################################################################################
 
 # configure index and retriever for "Essentials of Glycobiology" textbook
+# note host for local client is the docker container name
 index_params = Parameters({
         "use_async": False,
-        "local_client": QdrantClient("http://localhost:6333"),
+        "local_client": QdrantClient("http://qdrant_vector_db:6333"),
         "data_dir": './textbook_text_data/',
         "cache": cache,
         "name": name
