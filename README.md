@@ -15,7 +15,7 @@ If you would like to contribute to this project, reach out to me via email at ek
 
 **Run with Docker**
 
-To use the prototype assistant yourself, the easist method is via docker container. Due to the use of external APIs, these instructions use docker files in the repo to build the image using your API keys and assume that you have installed and/or are familiar with git and docker command line tools. 
+To experiment with the prototype assistant yourself, this repository is configured to use docker compose to run the application and vector database as a pair of networked containers. You will need [docker compose](https://docs.docker.com/compose/) installed appropriately for your machine, then follow the steps below.
 
 Steps:
 1. Clone the repository
