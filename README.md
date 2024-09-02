@@ -20,23 +20,24 @@ To experiment with the prototype assistant yourself, this repository is configur
 Steps:
 1. Clone the repository
 
-2. Add your API keys
+2. Add your API keys:
 
-You will need to supply api keys for OpenAI and Google, which, you can get here:
+    You will need to supply api keys for OpenAI and Google, which, you can get here:
 
-[OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
+    [OpenAI Developer Portal](https://platform.openai.com) | [Google Custom Search](https://console.cloud.google.com/apis/library/customsearch.googleapis.com)
 
-Put these into a folder labelled SENSITIVE as text files,
-> GlyBot/SENSITIVE/openai_api_key.txt
+    Put these into a folder labelled SENSITIVE as text files,
 
-> GlyBot/SENSITIVE/google_api_key.txt
+    > GlyBot/SENSITIVE/openai_api_key.txt
+    > GlyBot/SENSITIVE/google_api_key.txt
 
 3. Run the config file with docker compose:
 
 ```
 docker compose up
 ```
-*This step will build an image for the application using your api keys as environment variables, install the qdrant database and embed the data, and leave it running in your terminal.*
+
+*This step will build an image for the application using your api keys as environment variables, install the qdrant database and embed the data, and leave it running in your terminal. This may take several minutes the first time you start the application.*
 
 Access the application by going to http://localhost:8501/
 
