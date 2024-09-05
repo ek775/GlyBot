@@ -92,7 +92,7 @@ def query_engine_config(_retriever: VectorIndexRetriever, _response_params: Para
 #################################################################################
 
 # configure index and retriever for "Essentials of Glycobiology" textbook
-# note host for local client is the docker container name
+# host for local client is the docker container name: qdrant_vector_db OR localhost if not running via compose
 index_params = Parameters({
         "use_async": False,
         "local_client": QdrantClient("http://qdrant_vector_db:6333"),
@@ -251,6 +251,23 @@ def extract_urls(text:str) -> list:
 
     return valid_urls
 
+def detect_relevance(query:str, threshold:float) -> bool:
+    """
+    Function for detecting if a user prompt is relevant to the assistant's scope.
+    """
+    relevance = None
+
+    # use retrieval score to determine relevance semantically
+    relevant_textbook = glyco_retriever.retrieve(query)
+    nom_relevance = relevant_textbook[0].score
+
+    if nom_relevance < threshold:
+        relevance = False
+    else:
+        relevance = True
+
+    return relevance
+
 #################################################################################
 # Streamlit Configuration and Main Application Script
 #################################################################################
@@ -325,12 +342,7 @@ if prompt := st.chat_input("How can I help you?"):
     with st.chat_message("user"):
         st.markdown(prompt)
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    # check question for relevance
-    """
-    TODO: function to check if the question is relevant to the context, break if false, 
-    politely ask user to ask a glycobiology question
-    """
+    st.session_state.messages.append({"role": "user", "content": prompt})        
 
     # get response from assistant
     # capture tool calls from stdout
@@ -338,7 +350,14 @@ if prompt := st.chat_input("How can I help you?"):
 
     def get_response(prompt):
         with stream_capture:
-            response = agent.chat(prompt)
+            # check relevance of user query
+            relevance = detect_relevance(query=prompt, threshold=0.3)
+            if relevance == False:
+                response = "I'm sorry, I'm not sure how to help with that. Please try asking a question related to glycobiology."
+
+            else:
+                response = agent.chat(prompt)
+            
             if os.path.exists("glycan_image_temp_file.png"):
                 agent.upload_files(["glycan_image_temp_file.png"])
                 os.remove("glycan_image_temp_file.png")
@@ -352,7 +371,7 @@ if prompt := st.chat_input("How can I help you?"):
             tool_call = stream_capture.getvalue()
         except Exception as e:
             print(e)
-            response = "An error occurred while processing your request."
+            response = "An error occurred while processing your request. Please try again later."
             stream_capture.flush()
             tool_call = stream_capture.getvalue()
 
