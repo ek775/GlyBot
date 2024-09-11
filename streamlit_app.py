@@ -48,12 +48,12 @@ prompt_template = (
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n"
-    "Summarize the above context information for GlyBot, which will use this information to guide its parsing of GlyGen data."
+    "Based on the context information provided, assist the user with navigating glygen, accessing data, or answering glycobiology questions, and respond to the query below.\n"
     "Query: {query_str}\n"
     "Answer: "
 )
 live_prompt_template = PromptTemplate(
-    prompt_template, prompt_type=PromptType.SUMMARY,
+    prompt_template, prompt_type=PromptType.CUSTOM,
 )
     
 Settings.llm = OpenAI(model="gpt-3.5-turbo", system_prompt=instructions)
@@ -108,12 +108,12 @@ retriever_params = Parameters({
 glyco_retriever = glyco_essentials_retriever(_index_params=index_params, _retriever_params=retriever_params)
 
 # config summary engine for "Essentials of Glycobiology" textbook
-response_params = Parameters({
+"""response_params = Parameters({
         "response_mode": "tree_summarize",
         "summary_template": live_prompt_template
         })
 
-glyco_engine = query_engine_config(_retriever=glyco_retriever, _response_params=response_params)
+glyco_engine = query_engine_config(_retriever=glyco_retriever, _response_params=response_params)"""
     
 #################################################################################
 ### GlyBot Config, Tools, and Caching ###
@@ -266,7 +266,7 @@ def detect_relevance(query:str, threshold:float) -> bool:
     else:
         relevance = True
 
-    return relevance
+    return relevance, relevant_textbook
 
 #################################################################################
 # Streamlit Configuration and Main Application Script
@@ -351,12 +351,13 @@ if prompt := st.chat_input("How can I help you?"):
     def get_response(prompt):
         with stream_capture:
             # check relevance of user query
-            relevance = detect_relevance(query=prompt, threshold=0.3)
+            relevance, context = detect_relevance(query=prompt, threshold=0.3)
             if relevance == False:
                 response = "I'm sorry, I'm not sure how to help with that. Please try asking a question related to glycobiology."
 
             else:
-                response = agent.chat(prompt)
+                augmented_prompt = prompt_template.format(context_str=''.join([c.text for c in context]), query_str=prompt)
+                response = agent.chat(augmented_prompt)
             
             if os.path.exists("glycan_image_temp_file.png"):
                 agent.upload_files(["glycan_image_temp_file.png"])
