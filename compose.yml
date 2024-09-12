@@ -3,15 +3,15 @@ name: glybot
 services:
 
   qdrant_vector_db:
-      image: qdrant/qdrant:latest
-      ports:
-        - "6333:6333"
-        - "6334:6334"
+    build: qdrant
+    # volumes:
+    #   - ./storage:/qdrant/storage
 
   web_app:
     build:
       context: .
       dockerfile: Dockerfile
+    # user: 1000:100
     ports: 
       - "8501:8501"
     depends_on:
