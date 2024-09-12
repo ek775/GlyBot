@@ -13,6 +13,7 @@ def build_pubmed_search_tool() -> FunctionTool:
 
     def pubmed_search(query: str):
         """Retrieves abstracts of relevant papers from PubMed"""
+        print("PubMed Search query:",query)
         reader = PubmedReader()
         papers = reader.load_data(search_query=query, max_results=10)
         index = VectorStoreIndex.from_documents(papers)

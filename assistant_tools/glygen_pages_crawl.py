@@ -13,6 +13,7 @@ def build_google_search_tool() -> FunctionTool:
     # handled by streamlit secrets
     
     google_custom_search_key = os.environ['GOOGLE_API_KEY']
+    google_custom_search_eng = os.environ['GOOGLE_CUSTOM_SEARCH']
 
     # define tool from function
     class GlyGenGoogleSearch(BaseModel):
@@ -21,7 +22,7 @@ def build_google_search_tool() -> FunctionTool:
 
     def glygen_google_search(query: str,
                              key: str = google_custom_search_key, 
-                             engine: str = 'e41846d71c58e4f2a',
+                             engine: str = google_custom_search_eng,
                              num: int = 5):
         """
         Searches the GlyGen website to find relevant information for navigating the site
@@ -29,6 +30,8 @@ def build_google_search_tool() -> FunctionTool:
         """
         url_template = ("https://www.googleapis.com/customsearch/v1?key={key}&cx={engine}&q={query}")
         url = url_template.format(key=key, engine=engine, query=urllib.parse.quote_plus(query))
+
+        print("GlyGen glycan page search:",query)
 
         if num is not None:
             if not 1 <= num <= 10:

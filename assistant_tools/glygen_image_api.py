@@ -2,9 +2,11 @@ from llama_index.core import VectorStoreIndex
 from llama_index.core.tools import FunctionTool
 from pydantic import BaseModel, Field
 import requests
+requests.packages.urllib3.disable_warnings() 
 from io import BytesIO
 from PIL import Image
 import base64
+import os, os.path
 
 ### glygen image search tool
 def build_glygen_image_search_tool() -> FunctionTool:
@@ -22,13 +24,18 @@ def build_glygen_image_search_tool() -> FunctionTool:
         if len(query) != 8 or not query[0].isalpha() or not query[1:6].isnumeric() or not query[6:].isalpha():
             return "The query should be a valid GlyTouCan ID"
 
+        print("Glygen Image API query:",query)
+
         # query the api
         url = f"https://api.glygen.org/glycan/image/{query}"
         response = requests.post(url=url, verify=False)
 
         if response.status_code == 200:
-            img = Image.open(BytesIO(response.content))
-            img.save("glycan_image_temp_file.png")
+            # fn = "glycan_image_temp_file_%s.png"%(query,)
+            # if not os.path.exists(fn):
+            #     img = Image.open(BytesIO(response.content))
+            #     img.save(fn)
+            # return '<img src="data:image/png;base64,%s" alt="%s Glycan Image">'%(base64.b64encode(response.content).decode('utf-8'),query)
             return base64.b64encode(response.content).decode('utf-8')
         elif response.status_code == 404:
             return "No image found for the given GlyTouCan ID"

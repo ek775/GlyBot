@@ -18,6 +18,7 @@ from pipelines.vector_store import QdrantSetup
 import re
 import os
 import sys
+import glob
 from io import StringIO
 #import logging
 from PIL import Image
@@ -38,6 +39,8 @@ try:
         os.environ['OPENAI_API_KEY'] = f.read().strip()
     with open('./SENSITIVE/google_api_key.txt', 'r') as f:
         os.environ['GOOGLE_API_KEY'] = f.read().strip()
+    with open('./SENSITIVE/google_custom_search.txt', 'r') as f:
+        os.environ['GOOGLE_CUSTOM_SEARCH'] = f.read().strip()
 # streamlit should serve the keys as environment variables already
 except:
     pass
@@ -108,12 +111,12 @@ retriever_params = Parameters({
 glyco_retriever = glyco_essentials_retriever(_index_params=index_params, _retriever_params=retriever_params)
 
 # config summary engine for "Essentials of Glycobiology" textbook
-"""response_params = Parameters({
-        "response_mode": "tree_summarize",
-        "summary_template": live_prompt_template
-        })
-
-glyco_engine = query_engine_config(_retriever=glyco_retriever, _response_params=response_params)"""
+# """response_params = Parameters({
+#        "response_mode": "tree_summarize",
+#         "summary_template": live_prompt_template
+#         })
+#
+# glyco_engine = query_engine_config(_retriever=glyco_retriever, _response_params=response_params)"""
     
 #################################################################################
 ### GlyBot Config, Tools, and Caching ###
@@ -359,9 +362,12 @@ if prompt := st.chat_input("How can I help you?"):
                 augmented_prompt = prompt_template.format(context_str=''.join([c.text for c in context]), query_str=prompt)
                 response = agent.chat(augmented_prompt)
             
-            if os.path.exists("glycan_image_temp_file.png"):
-                agent.upload_files(["glycan_image_temp_file.png"])
-                os.remove("glycan_image_temp_file.png")
+            # imgfiles = glob.glob("glycan_image_temp_file_*.png")
+            # if len(imgfiles) > 0:
+            #     print("uploading:",imgfiles)
+            #     agent.upload_files(imgfiles)
+            # for fn in imgfiles:
+            #     os.remove(fn)
         return response
     
     with st.spinner("Thinking..."):
@@ -383,7 +389,8 @@ if prompt := st.chat_input("How can I help you?"):
                 f.write("\n")
                 f.write(tool_call)
                 f.write("\n")
-                f.write(e)
+                f.write(str(e))
+                f.write("\n")
         # save tool calls to history
         st.session_state.tool_output.append(tool_call)
         st.session_state.learn_more_urls.extend(extract_urls(tool_call))
