@@ -290,12 +290,13 @@ if "glycan_images" not in st.session_state:
  
 # initialize agent, cached so not rebuilt on each rerun
 # in case of errors, do not show user tracebacks
-agent_name = "GlyBot-0.2"
+agent_name = "GlyBot-0.21"
+agent = None
 try:
-
     if "agent" not in st.session_state:
+        print("No agent found")
         # be sure to update id once testing a new agent
-        id = 'asst_Kl07X7RbVCbCYtOdqiLqFzQ8'
+        id = 'asst_RZx5KjygwB6HEH1BtwEXrWHj'
         tools = load_tools()
         agent = build_agent(
             _tools=tools, 
