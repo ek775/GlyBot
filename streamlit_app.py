@@ -81,6 +81,7 @@ class Parameters:
             value = getattr(self, attr)
             yield attr, value
 
+@st.cache_resource
 def glyco_essentials_retriever(_index_params: Parameters, _retriever_params: Parameters) -> VectorIndexRetriever:
     db = QdrantSetup(**dict(_index_params.params))
     retriever = VectorIndexRetriever(index=db.index, **dict(_retriever_params.params))
@@ -142,7 +143,7 @@ def load_tools() -> list:
     return tools
 
 # build agent
-@st.cache_resource
+# @st.cache_resource
 def build_agent(_tools: list,
                 openai_assistant_name: Optional[str]="GlyBot", 
                 thread_id: Optional[str] = None, 
@@ -169,7 +170,7 @@ def build_agent(_tools: list,
             verbose=True,
             run_retrieve_sleep_time=1.0
         )
-        print("Agent Loaded")
+        print("Agent Loaded",agent.assistant.id,agent.thread_id)
         return agent
     except:
         agent = OpenAIAssistantAgent.from_new(
@@ -182,7 +183,7 @@ def build_agent(_tools: list,
             verbose=True,
             run_retrieve_sleep_time=1.0
             )
-        print("Agent Built")
+        print("Agent Built",agent.assistant.id,agent.thread_id)
         return agent
 
 #################################################################################
@@ -275,6 +276,8 @@ def detect_relevance(query:str, threshold:float) -> bool:
 # Streamlit Configuration and Main Application Script
 #################################################################################
 
+# print("Session State:",st.session_state)
+
 # Initialize chat history, tool output history, images, urls
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -287,30 +290,43 @@ if "glycan_images" not in st.session_state:
  
 # initialize agent, cached so not rebuilt on each rerun
 # in case of errors, do not show user tracebacks
+agent_name = "GlyBot-0.2"
 try:
-    # be sure to update id once testing a new agent
-    agent_name = "GlyBot-0.2"
-    id = 'asst_Kl07X7RbVCbCYtOdqiLqFzQ8'
-    tools = load_tools()
-    agent = build_agent(
-        _tools=tools, 
-        openai_assistant_name=agent_name, 
-        assistant_id=id
-        )
+
+    if "agent" not in st.session_state:
+        # be sure to update id once testing a new agent
+        id = 'asst_Kl07X7RbVCbCYtOdqiLqFzQ8'
+        tools = load_tools()
+        agent = build_agent(
+            _tools=tools, 
+            openai_assistant_name=agent_name, 
+            assistant_id=id
+            )
+        st.session_state.agent = agent
+        print("New agent!",agent.assistant.id,agent.thread_id)
+    else:
+        agent = st.session_state.agent
+        print("Old agent!",agent.assistant.id,agent.thread_id)
+
 except Exception as e:
     print(e)
     st.write("An error occurred while connecting to the assistant. Please try again later.")
     # save traceback to log file so we can debug
     log_number = ''.join([str(np.random.randint(0,10)) for n in range(12)])
     with open(f"./logging/{log_number}.txt", "x") as f:
-        for line in e:
+        for line in str(e).splitlines():
             f.write(line)
+
+# print("Session State:",st.session_state)
 
 # check for redundant starter messages in history
 starter_msg = "Hello! I'm GlyBot, your glycobiology assistant. How can I help you today?"
+counter = 0
 for msg in st.session_state.messages:
     if msg["content"] == starter_msg:
-        st.session_state.messages.remove(msg)
+        if counter > 0:
+            st.session_state.messages.remove(msg)
+        counter += 1
 
 # Display chat messages, etc. from history on app rerun
 for message in st.session_state.messages:
