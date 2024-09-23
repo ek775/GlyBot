@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 import urllib.parse
 from llama_index.core import SummaryIndex, Document
 import html2text
-from selenium.webdriver import Chrome
+import selenium.webdriver
 import os
 import requests
 import json
@@ -91,7 +91,9 @@ def build_google_search_tool() -> FunctionTool:
         pages = results['items']
         documents = []
         with no_ssl_verification():
-            driver = Chrome()
+            chrome_options = selenium.webdriver.ChromeOptions()
+            chrome_options.add_argument('--headless=new')
+            driver = selenium.webdriver.Chrome(options=chrome_options, keep_alive=True)
             for page in pages:
                 driver.get(page['link'])
                 md_page = html2text.html2text(driver.page_source)
@@ -101,6 +103,7 @@ def build_google_search_tool() -> FunctionTool:
                     metadata=page,
                     )
                 )
+            driver.quit()
 
         # sift through the response to get the relevant information
         index = SummaryIndex.from_documents(documents)
