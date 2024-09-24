@@ -87,12 +87,13 @@ def build_google_search_tool() -> FunctionTool:
         results = json.loads(response.content)
 
         # extract urls to crawl from search results
-        # appx 17 seconds to crawl 10 pages per testing
         pages = results['items']
         documents = []
         with no_ssl_verification():
             chrome_options = selenium.webdriver.ChromeOptions()
             chrome_options.add_argument('--headless=new')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
             driver = selenium.webdriver.Chrome(options=chrome_options, keep_alive=True)
             for page in pages:
                 driver.get(page['link'])
